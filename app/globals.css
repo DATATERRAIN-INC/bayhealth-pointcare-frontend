@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8f9fb;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --brand: #2563eb;
+  --brand-soft: #eff6ff;
+  --focus: #2563eb;
+
+  /*
+   * Typography scale — keep in sync with lib/theme/tokens.ts
+   * Body/inputs/menus: 14px
+   * Labels/table extras/badges: 14px
+   * Headings: 20 / 25 / 36
+   */
+  --font-size-body: 14px;
+  --font-size-small: var(--font-size-body);
+  --font-size-h3: 20px;
+  --font-size-h2: 25px;
+  --font-size-h1: 36px;
+  --font-size-pagination-md: 16px;
+  --control-height: 55px;
+  --button-height: 45px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-jakarta: var(--font-plus-jakarta);
+
+  /* Semantic text utilities: text-body, text-small, text-h1, text-h2, text-h3 */
+  --text-body: var(--font-size-body);
+  --text-small: var(--font-size-small);
+  --text-h3: var(--font-size-h3);
+  --text-h2: var(--font-size-h2);
+  --text-h1: var(--font-size-h1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-plus-jakarta), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Font sizes come from the MUI theme (lib/theme). Element rules here must stay
+   inside @layer so they lose to MUI's own layered styles. */
+@layer base {
+  input,
+  select,
+  textarea,
+  button {
+    font-size: var(--font-size-body);
+  }
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: var(--font-size-h3);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+label,
+.text-small,
+.caption,
+.status-badge {
+  font-size: var(--font-size-small);
+}
+
+.overline,
+.text-overline {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Stat metric value uses page-title scale */
+.text-metric {
+  font-size: var(--font-size-h2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+/* Tables — Plus Jakarta Sans, body size for header + cells */
+table.data-table,
+.data-table table {
+  font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--font-size-body);
+}
+
+table.data-table thead th,
+.data-table thead th {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+table.data-table tbody td,
+.data-table tbody td {
+  font-size: var(--font-size-body);
+  font-weight: 400;
+}
+
+table.data-table .text-small,
+.data-table .text-small {
+  font-size: var(--font-size-small);
+}
+
+::selection {
+  background: #dbeafe;
+  color: #0f172a;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* MUI fields/buttons already provide focus styles — avoid double rings */
+.MuiInputBase-input:focus-visible,
+.MuiOutlinedInput-input:focus-visible,
+.MuiSelect-select:focus-visible,
+.MuiButtonBase-root:focus-visible,
+.MuiChip-root:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+}

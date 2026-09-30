@@ -1,0 +1,39 @@
+export interface CallApiRecord {
+  id: number | string;
+  patient?: number | string;
+  patient_name?: string;
+  retell_call_id?: string;
+  flow?: string;
+  status?: string;
+  from_number?: string;
+  to_number?: string;
+  agent_id?: string;
+  transfer_number?: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_seconds?: number | null;
+  has_transcript?: boolean;
+  message_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TranscriptApiLine {
+  at: string | null;
+  text: string;
+  speaker: string;
+}
+
+export interface CallTranscriptResponse {
+  transcript: TranscriptApiLine[];
+}
+
+export interface CallsListResponse {
+  count: number;
+  total_pages: number;
+  page: number;
+  page_size: number;
+  next: string | null;
+  previous: string | null;
+  results: CallApiRecord[];
+}
