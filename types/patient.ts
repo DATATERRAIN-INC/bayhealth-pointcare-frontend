@@ -23,6 +23,9 @@ export interface PatientApiRecord {
   live_agent_country_code?: string;
   live_agent_number?: string;
   source?: string;
+  is_blocked?: boolean;
+  blocked?: boolean;
+  is_active?: boolean;
   upload_file_key?: string;
   created_at?: string;
   updated_at?: string;

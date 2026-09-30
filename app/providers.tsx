@@ -5,6 +5,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import { ReduxProvider } from "@/components/providers/ReduxProvider";
+import { PermissionToast } from "@/components/shared/PermissionToast";
 import { theme } from "@/lib/theme";
 
 interface AppProvidersProps {
@@ -19,6 +20,7 @@ export function AppProviders({ children }: AppProvidersProps) {
         <ThemeProvider theme={theme}>
           <CssBaseline />
           {children}
+          <PermissionToast />
         </ThemeProvider>
       </ReduxProvider>
     </AppRouterCacheProvider>

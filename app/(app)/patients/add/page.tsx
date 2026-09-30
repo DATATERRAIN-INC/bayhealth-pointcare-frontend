@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, type ReactNode, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, type ReactNode, useMemo, useState } from "react";
 import {
   Box,
+  CircularProgress,
   InputAdornment,
   MenuItem,
   Stack,
@@ -15,14 +16,8 @@ import { ChevronDown, Phone, UserRound, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AppBreadcrumbs } from "@/components/shared/AppBreadcrumbs";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
-import { useCreatePatientMutation } from "@/lib/api/patientsApi";
-import {
-  DOCTORS,
-  formatDobInput,
-  isFutureDate,
-  parseDobInput,
-  toIsoDate,
-} from "@/data/gapPatients";
+import { useCreatePatientMutation, useGetPatientsQuery, useUpdatePatientMutation } from "@/lib/api/patientsApi";
+import { formatDobInput, isFutureDate, parseDobInput, toIsoDate } from "@/data/gapPatients";
 
 const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
 
@@ -58,6 +53,12 @@ const labelSx = {
   fontWeight: 600,
   color: "text.primary",
 } as const;
+
+function isoToDobInput(isoDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate.trim());
+  if (!match) return isoDate;
+  return `${match[2]}/${match[3]}/${match[1]}`;
+}
 
 function FieldLabel({ children }: { children: string }) {
   return (
@@ -117,6 +118,10 @@ function PhoneField({
   onCountryCodeChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
 }) {
+  const countryCodes = (COUNTRY_CODES as readonly string[]).includes(countryCode)
+    ? COUNTRY_CODES
+    : [countryCode, ...COUNTRY_CODES];
+
   return (
     <Box>
       <FieldLabel>{label}</FieldLabel>
@@ -163,7 +168,7 @@ function PhoneField({
                     },
                   }}
                 >
-                  {COUNTRY_CODES.map((code) => (
+                  {countryCodes.map((code) => (
                     <MenuItem key={code} value={code}>
                       {code}
                     </MenuItem>
@@ -178,13 +183,42 @@ function PhoneField({
   );
 }
 
-export default function AddPatientPage() {
+function AddPatientPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const patientId = searchParams.get("id")?.trim() ?? "";
+  const isEdit = searchParams.get("edit") === "true" && Boolean(patientId);
+  const { data: patientList, isLoading: isLoadingPatient, isError: patientsError } = useGetPatientsQuery(
+    { page: 1, pageSize: 100 },
+    { skip: !isEdit },
+  );
+  const patients = patientList?.results ?? [];
+  const patient = useMemo(
+    () => (isEdit ? patients.find((item) => item.id === patientId) : undefined),
+    [isEdit, patients, patientId],
+  );
   const [form, setForm] = useState(initialForm);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
   const [dobError, setDobError] = useState("");
   const [formError, setFormError] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
-  const [createPatient, { isLoading }] = useCreatePatientMutation();
+  const [createPatient, { isLoading: isCreating }] = useCreatePatientMutation();
+  const [updatePatient, { isLoading: isUpdating }] = useUpdatePatientMutation();
+  const isLoading = isCreating || isUpdating;
+  if (isEdit && patient && loadedId !== patient.id) {
+    setLoadedId(patient.id);
+    setForm({
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      dob: isoToDobInput(patient.dateOfBirth),
+      address: patient.address,
+      doctor: patient.doctor,
+      countryCode: patient.countryCode || "+1",
+      phoneNumber: patient.phoneNumber,
+      liveAgentCountryCode: patient.liveAgentCountryCode || "+1",
+      liveAgentNumber: patient.liveAgentNumber,
+    });
+  }
 
   function updateField(field: keyof typeof form, value: string) {
     const nextValue = field === "dob" ? formatDobInput(value) : value;
@@ -221,18 +255,24 @@ export default function AddPatientPage() {
       return;
     }
 
+    const body = {
+      first_name: form.firstName.trim(),
+      last_name: form.lastName.trim(),
+      address: form.address.trim(),
+      dob: toIsoDate(parsedDob),
+      doctor: form.doctor,
+      country_code: form.countryCode,
+      phone_number: form.phoneNumber.trim(),
+      live_agent_country_code: form.liveAgentCountryCode,
+      live_agent_number: form.liveAgentNumber.trim(),
+    };
+
     try {
-      await createPatient({
-        first_name: form.firstName.trim(),
-        last_name: form.lastName.trim(),
-        address: form.address.trim(),
-        dob: toIsoDate(parsedDob),
-        doctor: form.doctor,
-        country_code: form.countryCode,
-        phone_number: form.phoneNumber.trim(),
-        live_agent_country_code: form.liveAgentCountryCode,
-        live_agent_number: form.liveAgentNumber.trim(),
-      }).unwrap();
+      if (isEdit) {
+        await updatePatient({ id: patientId, body }).unwrap();
+      } else {
+        await createPatient(body).unwrap();
+      }
       setSuccessOpen(true);
     } catch (error) {
       const data =
@@ -248,12 +288,50 @@ export default function AddPatientPage() {
     router.push("/patients");
   }
 
+  if (isEdit && !patient) {
+    return (
+      <Stack spacing={2} sx={{ width: "100%" }}>
+        <AppBreadcrumbs
+          items={[
+            { label: "Patients", href: "/patients", icon: <UsersRound size={16} /> },
+            { label: "Edit patient" },
+          ]}
+        />
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 1.5,
+            minHeight: 240,
+            bgcolor: "#FFFFFF",
+            border: "1px solid #DDE3EA",
+            borderRadius: "12px",
+          }}
+        >
+          {isLoadingPatient ? (
+            <>
+              <CircularProgress size={22} />
+              <Typography sx={{ color: "text.secondary" }}>Loading patient…</Typography>
+            </>
+          ) : (
+            <Typography sx={{ color: patientsError ? "#D92D20" : "text.secondary", textAlign: "center", px: 2 }}>
+              {patientsError
+                ? "Could not load this patient. Check the API connection and try again."
+                : "This patient could not be found."}
+            </Typography>
+          )}
+        </Box>
+      </Stack>
+    );
+  }
+
   return (
     <Stack spacing={2} sx={{ width: "100%" }}>
       <AppBreadcrumbs
         items={[
           { label: "Patients", href: "/patients", icon: <UsersRound size={16} /> },
-          { label: "Add patient" },
+          { label: isEdit ? "Edit patient" : "Add patient" },
         ]}
       />
       <Stack
@@ -263,10 +341,12 @@ export default function AddPatientPage() {
       >
         <Box>
           <Typography sx={{ fontSize: 22, fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>
-            Add patient
+            {isEdit ? "Edit patient" : "Add patient"}
           </Typography>
           <Typography sx={{ mt: 0.25, color: "text.secondary" }}>
-            Create a patient profile for outreach and follow-up calls.
+            {isEdit
+              ? "Update this patient profile for outreach and follow-up calls."
+              : "Create a patient profile for outreach and follow-up calls."}
           </Typography>
         </Box>
         <Box
@@ -280,7 +360,7 @@ export default function AddPatientPage() {
             fontWeight: 600,
           }}
         >
-          New patient
+          {isEdit ? "Editing" : "New patient"}
         </Box>
       </Stack>
 
@@ -349,27 +429,12 @@ export default function AddPatientPage() {
             <Box>
               <FieldLabel>Doctor</FieldLabel>
               <TextField
-                select
                 fullWidth
+                placeholder="Enter doctor name"
                 value={form.doctor}
                 onChange={(event) => updateField("doctor", event.target.value)}
                 sx={fieldSx}
-                slotProps={{
-                  select: {
-                    displayEmpty: true,
-                    IconComponent: () => (
-                      <ChevronDown size={16} style={{ marginRight: 10, color: "#64748B" }} />
-                    ),
-                  },
-                }}
-              >
-                <MenuItem value="">Select a doctor</MenuItem>
-                {DOCTORS.map((doctor) => (
-                  <MenuItem key={doctor} value={doctor}>
-                    {doctor}
-                  </MenuItem>
-                ))}
-              </TextField>
+              />
             </Box>
             <Box sx={{ gridColumn: { xs: "1", md: "1 / -1", lg: "2 / -1" } }}>
               <FieldLabel>Address</FieldLabel>
@@ -434,7 +499,7 @@ export default function AddPatientPage() {
         </Box>
 
         <Stack
-          direction="row"
+          direction={{ xs: "column", sm: "row" }}
           spacing={1.25}
           sx={{
             justifyContent: "center",
@@ -449,21 +514,35 @@ export default function AddPatientPage() {
             href="/patients"
             variant="secondary"
             disabled={isLoading}
-            sx={{ width: 140 }}
+            sx={{ width: { xs: "100%", sm: 140 } }}
           >
             Cancel
           </Button>
-          <Button type="submit" loading={isLoading} sx={{ width: 140, px: 2.5 }}>
-            {isLoading ? "Saving…" : "Save patient"}
+          <Button type="submit" loading={isLoading} sx={{ width: { xs: "100%", sm: isEdit ? 168 : 140 }, px: 2.5 }}>
+            {isLoading ? "Saving…" : isEdit ? "Save changes" : "Save patient"}
           </Button>
         </Stack>
 
         <SuccessDialog
           open={successOpen}
-          message="Patient added successfully."
+          message={isEdit ? "Patient updated successfully." : "Patient added successfully."}
           onClose={handleSuccessClose}
         />
       </Box>
     </Stack>
+  );
+}
+
+export default function AddPatientRoute() {
+  return (
+    <Suspense
+      fallback={
+        <Stack sx={{ minHeight: 240, alignItems: "center", justifyContent: "center" }}>
+          <CircularProgress size={22} />
+        </Stack>
+      }
+    >
+      <AddPatientPage />
+    </Suspense>
   );
 }

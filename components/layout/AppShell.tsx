@@ -4,6 +4,14 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { getSession } from "@/lib/auth";
+import {
+  ACCESS_TOKEN_KEY,
+  buildLoginUrl,
+  consumeRedirectLogout,
+  isAuthenticated,
+  isRedirectingLogout,
+  needsPasswordChange,
+} from "@/lib/authUtils";
 import type { User } from "@/types/user";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppTopBar } from "@/components/layout/AppTopBar";
@@ -19,12 +27,25 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     try {
+      if (isRedirectingLogout() && !isAuthenticated()) {
+        return;
+      }
+      if (isRedirectingLogout()) consumeRedirectLogout();
+      if (!isAuthenticated()) {
+        router.replace(buildLoginUrl(pathname, window.location.search));
+        return;
+      }
+      if (needsPasswordChange()) {
+        router.replace("/change-password");
+        return;
+      }
       const session = getSession();
       if (!session) {
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        router.replace(buildLoginUrl(pathname, window.location.search));
         return;
       }
       setUser(session.user);
@@ -33,6 +54,17 @@ export function AppShell({ children }: AppShellProps) {
       console.error("Session check failed:", error);
       router.replace("/login");
     }
+  }, [pathname, router]);
+
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      if (event.key !== ACCESS_TOKEN_KEY || event.newValue) return;
+      setUser(null);
+      setChecking(true);
+      router.replace(buildLoginUrl(pathname, window.location.search));
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [pathname, router]);
 
   if (checking || !user) {
@@ -57,15 +89,19 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <ErrorBoundary fallbackTitle="Navigation unavailable">
-        <Sidebar user={user} />
+        <Sidebar
+          user={user}
+          mobileOpen={mobileNavOpen}
+          onMobileClose={() => setMobileNavOpen(false)}
+        />
       </ErrorBoundary>
 
       <Box sx={{ display: "flex", minWidth: 0, flex: 1, flexDirection: "column" }}>
         <ErrorBoundary fallbackTitle="Top bar unavailable">
-          <AppTopBar user={user} />
+          <AppTopBar user={user} onOpenMenu={() => setMobileNavOpen(true)} />
         </ErrorBoundary>
 
-        <Box component="main" sx={{ flex: 1, px: { xs: 2, lg: 3 }, pb: 3, pt: { xs: 2, lg: 2.5 } }}>
+        <Box component="main" sx={{ flex: 1, minWidth: 0, px: { xs: 2, lg: 3 }, pb: 3, pt: { xs: 2, lg: 2.5 } }}>
           <ErrorBoundary fallbackTitle="This page failed to load">
             <Suspense fallback={<AppLoadingFallback />}>{children}</Suspense>
           </ErrorBoundary>

@@ -1,6 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { getAuthToken } from "@/lib/auth";
-import { getBaseUrl } from "@/lib/api/baseUrl";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { OutreachCall, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
 
@@ -104,17 +103,7 @@ function mapTranscriptLine(line: TranscriptApiLine): TranscriptLine {
 
 export const callsApi = createApi({
   reducerPath: "callsApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${getBaseUrl()}/api/ai-call`,
-    prepareHeaders: (headers) => {
-      headers.set("Content-Type", "application/json");
-      const token = getAuthToken();
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ["Call"],
   endpoints: (builder) => ({
     getCalls: builder.query<CallsPage, CallsQuery>({

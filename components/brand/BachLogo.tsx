@@ -2,10 +2,10 @@ import Image from "next/image";
 import { Box, Typography } from "@mui/material";
 
 const LOGO_INTRINSIC_WIDTH = 600;
-const LOGO_INTRINSIC_HEIGHT = 170;
+const LOGO_INTRINSIC_HEIGHT = 160;
 
 /** Display width used in the sidebar brand. */
-export const BACH_LOGO_WIDTH = 180;
+export const BACH_LOGO_WIDTH = 160;
 
 interface BachLogoProps {
   showTagline?: boolean;
@@ -16,7 +16,7 @@ export function BachLogo({ showTagline = false, width = BACH_LOGO_WIDTH }: BachL
   const height = Math.round(width * (LOGO_INTRINSIC_HEIGHT / LOGO_INTRINSIC_WIDTH));
 
   return (
-    <Box>
+    <Box    style={{ marginLeft: 15 }}>
       <Image
         src="/bach-logo.webp"
         alt="Bay Area Community Health"

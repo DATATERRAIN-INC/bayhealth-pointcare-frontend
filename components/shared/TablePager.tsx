@@ -39,14 +39,15 @@ export function TablePager({
 
   return (
     <Stack
-      direction="row"
+      direction={{ xs: "column", sm: "row" }}
       sx={{
         width: "100%",
-        alignItems: "center",
+        alignItems: { xs: "flex-start", sm: "center" },
         justifyContent: "flex-end",
-        gap: { xs: 1.5, sm: 2.5 },
+        gap: { xs: 0.5, sm: 2.5 },
         minHeight: 52,
         px: { xs: 1.5, sm: 2 },
+        py: { xs: 1, sm: 0 },
         borderTop: "1px solid #EEF0F4",
         bgcolor: "#FFFFFF",
       }}

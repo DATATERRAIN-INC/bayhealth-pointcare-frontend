@@ -3,10 +3,17 @@ export type PatientSource = "Manual" | "Excel";
 export interface PatientRecord {
   id: string;
   name: string;
+  firstName: string;
+  lastName: string;
   address: string;
   dateOfBirth: string;
   doctor: string;
   source: PatientSource;
+  countryCode: string;
+  phoneNumber: string;
+  liveAgentCountryCode: string;
+  liveAgentNumber: string;
+  blocked: boolean;
 }
 
 export const DOCTORS = ["Dr. Alan Brooks", "Dr. Priya Shah"] as const;

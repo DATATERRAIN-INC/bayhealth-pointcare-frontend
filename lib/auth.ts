@@ -1,9 +1,19 @@
 import type { AuthSession, User } from "@/types/user";
 import type { LoginApiResponse, LoginApiUser } from "@/types/auth";
+import {
+  ACCESS_TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
+  clearSession,
+  getAccessToken,
+  getRefreshToken as readRefreshToken,
+  getTokenEmail,
+  isAuthenticated as hasAccessToken,
+  jwtDecode,
+  tokenExpiresAt,
+} from "@/lib/authUtils";
 
+export { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY };
 export const SESSION_KEY = "pointcare_session";
-export const ACCESS_TOKEN_KEY = "access_token";
-export const REFRESH_TOKEN_KEY = "refresh_token";
 
 function initialsFrom(value: string): string {
   const parts = value.split(/[.\s@_+-]+/).filter(Boolean);
@@ -24,16 +34,27 @@ function displayNameFrom(user?: LoginApiUser, emailFallback = ""): string {
 }
 
 function decodeJwtExp(token: string): Date | null {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const json = JSON.parse(atob(normalized)) as { exp?: number };
-    if (!json.exp) return null;
-    return new Date(json.exp * 1000);
-  } catch {
-    return null;
-  }
+  return tokenExpiresAt(token);
+}
+
+function userFromToken(token: string, emailFallback = ""): User {
+  const claims = jwtDecode(token);
+  const email =
+    getTokenEmail() ||
+    (typeof claims?.email === "string" ? claims.email : "") ||
+    emailFallback;
+  const given = typeof claims?.given_name === "string" ? claims.given_name : "";
+  const family = typeof claims?.family_name === "string" ? claims.family_name : "";
+  const claimName = typeof claims?.name === "string" ? claims.name : "";
+  const name = [given, family].filter(Boolean).join(" ").trim() || claimName || email || "User";
+  const role = typeof claims?.role === "string" && claims.role.trim() ? claims.role : "Care team";
+  return {
+    id: String(claims?.sub ?? claims?.user_id ?? "usr"),
+    name,
+    email,
+    role,
+    avatarInitials: initialsFrom(name || email || "User"),
+  };
 }
 
 function extractAccessToken(response: LoginApiResponse): string {
@@ -82,80 +103,94 @@ export function saveSession(session: AuthSession): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   window.localStorage.setItem(ACCESS_TOKEN_KEY, session.accessToken);
-  window.localStorage.setItem(REFRESH_TOKEN_KEY, session.refreshToken);
-}
-
-/** Temporary local login — skips the API until CORS/backend is ready. */
-export function loginLocally(email: string): AuthSession {
-  const trimmed = email.trim();
-  const name = trimmed.includes("@") ? trimmed.split("@")[0] : trimmed;
-  const expires = new Date();
-  expires.setHours(expires.getHours() + 8);
-
-  const session: AuthSession = {
-    user: {
-      id: `local-${Date.now()}`,
-      name: name || "User",
-      email: trimmed,
-      role: "Care team",
-      avatarInitials: initialsFrom(name || trimmed || "U"),
-    },
-    accessToken: `local-access-${Date.now()}`,
-    refreshToken: `local-refresh-${Date.now()}`,
-    expiresAt: expires.toISOString(),
-  };
-
-  saveSession(session);
-  return session;
-}
-
-export function logout(): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SESSION_KEY);
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
-  // Legacy key cleanup
-  window.localStorage.removeItem("pointcare_token");
-}
-
-export function getSession(): AuthSession | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(SESSION_KEY);
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as AuthSession & { token?: string };
-    const accessToken = parsed.accessToken || parsed.token || window.localStorage.getItem(ACCESS_TOKEN_KEY) || "";
-    const refreshToken = parsed.refreshToken || window.localStorage.getItem(REFRESH_TOKEN_KEY) || "";
-
-    const session: AuthSession = {
-      user: parsed.user,
-      accessToken,
-      refreshToken,
-      expiresAt: parsed.expiresAt,
-    };
-
-    if (!session.accessToken || new Date(session.expiresAt).getTime() < Date.now()) {
-      logout();
-      return null;
-    }
-    return session;
-  } catch {
-    logout();
-    return null;
+  if (session.refreshToken) {
+    window.localStorage.setItem(REFRESH_TOKEN_KEY, session.refreshToken);
   }
 }
 
+export function updateAccessToken(accessToken: string, refreshToken?: string): void {
+  if (typeof window === "undefined") return;
+  const raw = window.localStorage.getItem(SESSION_KEY);
+  let current: AuthSession | null = null;
+  if (raw) {
+    try {
+      current = JSON.parse(raw) as AuthSession;
+    } catch {
+      current = null;
+    }
+  }
+
+  const expires = decodeJwtExp(accessToken) ?? new Date(Date.now() + 8 * 60 * 60 * 1000);
+  saveSession({
+    user: current?.user ?? {
+      id: "usr",
+      name: "User",
+      email: "",
+      role: "Care team",
+      avatarInitials: "PC",
+    },
+    accessToken,
+    refreshToken: refreshToken || current?.refreshToken || window.localStorage.getItem(REFRESH_TOKEN_KEY) || "",
+    expiresAt: expires.toISOString(),
+  });
+}
+
+export function logout(): void {
+  clearSession();
+  if (typeof window === "undefined") return;
+  queueMicrotask(() => {
+    void import("@/lib/store").then((mod) => mod.resetClientStore());
+  });
+}
+
+export function getSession(): AuthSession | null {
+  const accessToken = getAccessToken();
+  if (!accessToken || typeof window === "undefined") return null;
+
+  const refreshToken = readRefreshToken() || "";
+  const expiresAt = (tokenExpiresAt(accessToken) ?? new Date(Date.now() + 8 * 60 * 60 * 1000)).toISOString();
+  const raw = window.localStorage.getItem(SESSION_KEY);
+
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as AuthSession & { token?: string };
+      if (parsed.user) {
+        return {
+          user: parsed.user,
+          accessToken,
+          refreshToken: parsed.refreshToken || refreshToken,
+          expiresAt: parsed.expiresAt || expiresAt,
+        };
+      }
+    } catch {
+      window.localStorage.removeItem(SESSION_KEY);
+    }
+  }
+
+  return {
+    user: userFromToken(accessToken),
+    accessToken,
+    refreshToken,
+    expiresAt,
+  };
+}
+
+export function isAccessTokenExpired(): boolean {
+  const token = getAccessToken();
+  if (!token) return false;
+  const expires = tokenExpiresAt(token);
+  if (!expires) return false;
+  return expires.getTime() <= Date.now();
+}
+
 export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY) || getSession()?.accessToken || null;
+  return getAccessToken();
 }
 
 export function getRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(REFRESH_TOKEN_KEY) || getSession()?.refreshToken || null;
+  return readRefreshToken();
 }
 
 export function isAuthenticated(): boolean {
-  return Boolean(getAuthToken() && getSession());
+  return hasAccessToken();
 }

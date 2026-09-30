@@ -5,17 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Box,
   Drawer,
-  IconButton,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   Stack,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
-import { Menu as MenuIcon, Phone, Settings, Users } from "lucide-react";
+import { Phone, Settings, Users } from "lucide-react";
 import { useState } from "react";
 import { ConfirmLogoutDialog } from "@/components/auth/ConfirmLogoutDialog";
 import { BachLogo } from "@/components/brand/BachLogo";
@@ -32,14 +29,13 @@ const DRAWER_WIDTH = 232;
 
 interface SidebarProps {
   user: User;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up("lg"));
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   function handleLogoutConfirm() {
@@ -55,7 +51,7 @@ export function Sidebar({ user }: SidebarProps) {
   const drawerContent = (
     <Stack sx={{ height: "100%", bgcolor: "background.paper" }}>
       <Box sx={{ px: 2, pt: 2.25, pb: 1.5 }}>
-        <Link href="/patients" onClick={() => setMobileOpen(false)} style={{ textDecoration: "none" }}>
+        <Link href="/patients" onClick={onMobileClose} style={{ textDecoration: "none" }}>
           <BachLogo showTagline />
         </Link>
       </Box>
@@ -83,7 +79,7 @@ export function Sidebar({ user }: SidebarProps) {
               component={Link}
               href={href}
               selected={active}
-              onClick={() => setMobileOpen(false)}
+              onClick={onMobileClose}
               sx={{
                 borderRadius: 2,
                 mb: 0.5,
@@ -176,28 +172,10 @@ export function Sidebar({ user }: SidebarProps) {
         onConfirm={handleLogoutConfirm}
       />
 
-      {!isDesktop && (
-        <IconButton
-          onClick={() => setMobileOpen(true)}
-          sx={{
-            position: "fixed",
-            left: 10,
-            top: 18,
-            zIndex: 40,
-            bgcolor: "background.paper",
-            border: 1,
-            borderColor: "divider",
-          }}
-          aria-label="Open navigation"
-        >
-          <MenuIcon size={18} />
-        </IconButton>
-      )}
-
       <Drawer
         variant="temporary"
         open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
+        onClose={onMobileClose}
         slotProps={{ root: { keepMounted: true } }}
         sx={{
           display: { xs: "block", lg: "none" },

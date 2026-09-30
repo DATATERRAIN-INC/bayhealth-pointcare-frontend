@@ -14,7 +14,9 @@ import {
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
-import { loginLocally } from "@/lib/auth";
+import { mapLoginResponseToSession, saveSession } from "@/lib/auth";
+import { consumeRedirectLogout, needsPasswordChange, safeRedirectPath } from "@/lib/authUtils";
+import { useLoginMutation } from "@/lib/api/authApi";
 import { Button } from "@/components/ui/Button";
 
 const fieldSx = {
@@ -38,17 +40,43 @@ const fieldSx = {
   },
 } as const;
 
+function loginErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error && "data" in error) {
+    const data = (error as { data?: unknown }).data;
+    if (typeof data === "string" && data.trim()) return data;
+    if (data && typeof data === "object") {
+      const record = data as { detail?: unknown; message?: unknown; non_field_errors?: unknown };
+      if (typeof record.detail === "string" && record.detail.trim()) return record.detail;
+      if (Array.isArray(record.detail) && typeof record.detail[0] === "string") return record.detail[0];
+      if (typeof record.message === "string" && record.message.trim()) return record.message;
+      if (Array.isArray(record.non_field_errors) && typeof record.non_field_errors[0] === "string") {
+        return record.non_field_errors[0];
+      }
+    }
+  }
+  if (typeof error === "object" && error && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    if (status === 401 || status === 400 || status === 403) {
+      return "Email or password is incorrect.";
+    }
+    if (status === "FETCH_ERROR" || status === "TIMEOUT_ERROR") {
+      return "Could not reach the sign-in service.";
+    }
+  }
+  return "Could not sign in. Please try again.";
+}
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") || "/patients";
+  const nextPath = safeRedirectPath(searchParams.get("redirect") || searchParams.get("next"), "/dashboard");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [resetNote, setResetNote] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [login, { isLoading }] = useLoginMutation();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,15 +89,19 @@ export function LoginForm() {
       return;
     }
 
-    setLoading(true);
-    // Temporary: skip API login and enter the app directly.
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    loginLocally(trimmedEmail);
-    setLoading(false);
-
-    const destination =
-      nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/patients";
-    router.replace(destination === "/dashboard" ? "/patients" : destination);
+    try {
+      const response = await login({ email: trimmedEmail, password }).unwrap();
+      const session = mapLoginResponseToSession(response, trimmedEmail);
+      if (!session.accessToken) {
+        setFormError("Sign in did not return a token.");
+        return;
+      }
+      consumeRedirectLogout();
+      saveSession(session);
+      router.replace(needsPasswordChange() ? "/change-password" : nextPath);
+    } catch (error) {
+      setFormError(loginErrorMessage(error));
+    }
   }
 
   return (
@@ -152,7 +184,7 @@ export function LoginForm() {
           type="submit"
           variant="primary"
           fullWidth
-          loading={loading}
+          loading={isLoading}
           sx={{
             mt: 0.5,
             borderRadius: "10px",
@@ -163,7 +195,7 @@ export function LoginForm() {
             "&:hover": { boxShadow: "none" },
           }}
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {isLoading ? "Signing in…" : "Sign in"}
         </Button>
 
         {formError ? (

@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { BachLogo } from "@/components/brand/BachLogo";
-import { getSession } from "@/lib/auth";
+import { consumeRedirectLogout, isAuthenticated, needsPasswordChange, safeRedirectPath } from "@/lib/authUtils";
 
 const highlights = [
   { label: "Add patients", color: "#3EC6E0" },
@@ -18,11 +18,17 @@ export function LoginPageView() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (getSession()) {
-      router.replace("/patients");
+    consumeRedirectLogout();
+    if (!isAuthenticated()) {
+      const timer = window.setTimeout(() => setReady(true), 1000);
+      return () => window.clearTimeout(timer);
+    }
+    if (needsPasswordChange()) {
+      router.replace("/change-password");
       return;
     }
-    setReady(true);
+    const params = new URLSearchParams(window.location.search);
+    router.replace(safeRedirectPath(params.get("redirect") || params.get("next"), "/dashboard"));
   }, [router]);
 
   return (
@@ -46,7 +52,7 @@ export function LoginPageView() {
           py: { lg: 5, xl: 6 },
         }}
       >
-        <BachLogo showTagline width={350} />
+        <BachLogo showTagline width={300} />
 
         <Box sx={{ maxWidth: 620, width: "100%", pr: { lg: 2, xl: 4 } }}>
           <Typography
@@ -62,7 +68,7 @@ export function LoginPageView() {
           <Typography
             sx={{
               mt: 2.5,
-              fontSize: { lg: 46, xl: 52 },
+              fontSize: { lg: 30, xl: 36 },
               fontWeight: 700,
               lineHeight: 1.12,
               letterSpacing: "-0.03em",
@@ -75,7 +81,7 @@ export function LoginPageView() {
             sx={{
               mt: 2.75,
               maxWidth: 560,
-              fontSize: { lg: 17, xl: 18 },
+              fontSize: { lg: 14, xl: 15 },
               lineHeight: 1.6,
               color: "#4B5A6B",
             }}

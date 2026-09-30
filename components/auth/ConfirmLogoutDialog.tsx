@@ -1,13 +1,8 @@
 "use client";
 
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-} from "@mui/material";
+import { Box, Dialog, Stack, Typography } from "@mui/material";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 interface ConfirmLogoutDialogProps {
   open: boolean;
@@ -20,30 +15,80 @@ export function ConfirmLogoutDialog({ open, onClose, onConfirm }: ConfirmLogoutD
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="xs"
-      fullWidth
+      maxWidth={false}
       slotProps={{
+        backdrop: {
+          sx: { bgcolor: "rgba(0, 0, 0, 0.45)" },
+        },
         paper: {
-          sx: { borderRadius: "12px", p: 0.5 },
+          sx: {
+            width: 440,
+            maxWidth: "calc(100vw - 40px)",
+            borderRadius: "10px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.18)",
+            overflow: "hidden",
+            m: 2,
+          },
         },
       }}
     >
-      <DialogTitle sx={{ fontSize: 18, fontWeight: 700, color: "text.primary", pb: 0.5 }}>
-        Sign out?
-      </DialogTitle>
-      <DialogContent>
-        <DialogContentText sx={{ fontSize: "var(--font-size-body)", color: "#6B7280" }}>
+      <Box
+        sx={{
+          bgcolor: "#FFFFFF",
+          px: 4,
+          py: 5,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+        }}
+      >
+        <Box
+          sx={{
+            width: 72,
+            height: 72,
+            borderRadius: "50%",
+            bgcolor: "#E8F3FC",
+            display: "grid",
+            placeItems: "center",
+            mb: 2.5,
+          }}
+        >
+          <LogOut size={32} strokeWidth={2.25} color="#3B82F6" />
+        </Box>
+
+        <Typography
+          sx={{
+            fontSize: 18,
+            fontWeight: 500,
+            color: "#3B82F6",
+            lineHeight: 1.45,
+            maxWidth: 340,
+          }}
+        >
+          Sign out?
+        </Typography>
+        <Typography
+          sx={{
+            mt: 1,
+            fontSize: "var(--font-size-body)",
+            color: "#6B7280",
+            lineHeight: 1.5,
+            maxWidth: 320,
+          }}
+        >
           Are you sure you want to sign out of Point of Care?
-        </DialogContentText>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ textTransform: "none" }}>
-          Cancel
-        </Button>
-        <Button onClick={onConfirm} variant="contained" color="primary" sx={{ textTransform: "none" }} autoFocus>
-          Sign out
-        </Button>
-      </DialogActions>
+        </Typography>
+
+        <Stack direction="row" spacing={1.5} sx={{ mt: 3.5, width: "100%", maxWidth: 320 }}>
+          <Button variant="secondary" onClick={onClose} fullWidth>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} fullWidth autoFocus>
+            Sign out
+          </Button>
+        </Stack>
+      </Box>
     </Dialog>
   );
 }
