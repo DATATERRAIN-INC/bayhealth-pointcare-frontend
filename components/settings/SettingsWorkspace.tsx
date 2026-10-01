@@ -11,23 +11,46 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import {
   useGetSettingsQuery,
   useUpdateSettingsMutation,
+  type LiveAgentNumber,
   type SettingsPayload,
 } from "@/lib/api/settingsApi";
+import {
+  getPhoneLengthRule,
+  phoneSamplePlaceholder,
+  sanitizePhoneDigits,
+  validatePhoneNumber,
+} from "@/lib/phone";
 
 const timezones = [
   { value: "America/New_York", label: "America/New_York (EDT)" },
   { value: "America/Chicago", label: "America/Chicago (CDT)" },
   { value: "America/Denver", label: "America/Denver (MDT)" },
   { value: "America/Los_Angeles", label: "America/Los_Angeles (PDT)" },
+  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST)" },
 ] as const;
 
 const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
+
+const LIVE_AGENT_NAME_SUGGESTIONS = [
+  "Front desk",
+  "Backup",
+  "Nurse station",
+  "On-call",
+] as const;
+
+interface LiveAgentDraft {
+  id: string;
+  countryCode: string;
+  phoneNumber: string;
+  label: string;
+  isActive: boolean;
+}
 
 interface CallingSettings {
   callsEnabled: boolean;
@@ -38,8 +61,32 @@ interface CallingSettings {
   callTriggerCount: string;
   recording: boolean;
   textSmsEnabled: boolean;
-  liveAgentCountryCode: string;
-  liveAgentNumber: string;
+  liveAgents: LiveAgentDraft[];
+}
+
+function suggestedLiveAgentName(index: number): string {
+  return LIVE_AGENT_NAME_SUGGESTIONS[index] ?? `Live agent ${index + 1}`;
+}
+
+function createLiveAgentId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createLiveAgentDraft(
+  partial?: Partial<Omit<LiveAgentDraft, "id">> & { id?: string },
+  index = 0,
+): LiveAgentDraft {
+  const countryCode = partial?.countryCode ?? "+1";
+  return {
+    id: partial?.id ?? createLiveAgentId(),
+    countryCode,
+    phoneNumber: sanitizePhoneDigits(partial?.phoneNumber ?? "", countryCode),
+    label: partial?.label ?? suggestedLiveAgentName(index),
+    isActive: partial?.isActive ?? true,
+  };
 }
 
 const defaultSettings: CallingSettings = {
@@ -51,8 +98,7 @@ const defaultSettings: CallingSettings = {
   callTriggerCount: "3",
   recording: true,
   textSmsEnabled: false,
-  liveAgentCountryCode: "+1",
-  liveAgentNumber: "",
+  liveAgents: [createLiveAgentDraft(undefined, 0)],
 };
 
 const fieldSx = {
@@ -178,6 +224,20 @@ function normalizeTimezone(value: string): string {
 }
 
 function toDraft(payload: SettingsPayload): CallingSettings {
+  const liveAgents =
+    payload.live_agent_numbers.length > 0
+      ? payload.live_agent_numbers.map((agent, index) =>
+          createLiveAgentDraft(
+            {
+              countryCode: agent.country_code || "+1",
+              phoneNumber: agent.phone_number || "",
+              label: agent.label || suggestedLiveAgentName(index),
+              isActive: agent.is_active,
+            },
+            index,
+          ),
+        )
+      : [createLiveAgentDraft(undefined, 0)];
   return {
     callsEnabled: payload.calls_enabled,
     start: apiTimeToLabel(payload.start_time),
@@ -187,8 +247,7 @@ function toDraft(payload: SettingsPayload): CallingSettings {
     callTriggerCount: String(payload.call_trigger_count),
     recording: payload.recording_enabled,
     textSmsEnabled: payload.text_sms_enabled,
-    liveAgentCountryCode: payload.live_agent_country_code || "+1",
-    liveAgentNumber: payload.live_agent_number || "",
+    liveAgents,
   };
 }
 
@@ -210,10 +269,38 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
   if (!timezone) {
     return { error: "Choose a timezone." };
   }
-  const liveAgentNumber = settings.liveAgentNumber.trim();
-  if (!liveAgentNumber) {
-    return { error: "Live agent phone is required." };
+
+  const live_agent_numbers: LiveAgentNumber[] = [];
+  for (let index = 0; index < settings.liveAgents.length; index += 1) {
+    const agent = settings.liveAgents[index];
+    const phone = agent.phoneNumber.trim();
+    const label = agent.label.trim();
+    if (!phone && !label) continue;
+    const name = label || suggestedLiveAgentName(index);
+    if (!phone) {
+      return { error: `Enter a phone number for ${name}.` };
+    }
+    if (!label) {
+      return { error: `Enter a name for live agent ${index + 1} (e.g. Front desk).` };
+    }
+    const phoneError = validatePhoneNumber(phone, agent.countryCode || "+1", {
+      required: true,
+      fieldLabel: `${name} phone number`,
+    });
+    if (phoneError) {
+      return { error: phoneError };
+    }
+    live_agent_numbers.push({
+      country_code: agent.countryCode || "+1",
+      phone_number: sanitizePhoneDigits(phone, agent.countryCode || "+1"),
+      label,
+      is_active: agent.isActive,
+    });
   }
+  if (live_agent_numbers.length === 0) {
+    return { error: "Add at least one live agent phone number." };
+  }
+
   return {
     payload: {
       calls_enabled: settings.callsEnabled,
@@ -224,8 +311,7 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
       timezone,
       max_calls_per_run: maxCalls,
       call_trigger_count: triggerCount,
-      live_agent_country_code: settings.liveAgentCountryCode || "+1",
-      live_agent_number: liveAgentNumber,
+      live_agent_numbers,
     },
   };
 }
@@ -475,6 +561,41 @@ export function SettingsWorkspace() {
     setDraft((current) => ({ ...current, ...patch }));
   }
 
+  function updateLiveAgent(id: string, patch: Partial<Omit<LiveAgentDraft, "id">>) {
+    dirty.current = true;
+    setNotice("");
+    setDraft((current) => ({
+      ...current,
+      liveAgents: current.liveAgents.map((agent) =>
+        agent.id === id ? { ...agent, ...patch } : agent,
+      ),
+    }));
+  }
+
+  function addLiveAgent() {
+    dirty.current = true;
+    setNotice("");
+    setDraft((current) => ({
+      ...current,
+      liveAgents: [
+        ...current.liveAgents,
+        createLiveAgentDraft(undefined, current.liveAgents.length),
+      ],
+    }));
+  }
+
+  function removeLiveAgent(id: string) {
+    dirty.current = true;
+    setNotice("");
+    setDraft((current) => ({
+      ...current,
+      liveAgents:
+        current.liveAgents.length <= 1
+          ? current.liveAgents
+          : current.liveAgents.filter((agent) => agent.id !== id),
+    }));
+  }
+
   async function save() {
     const result = toPayload(draft);
     if ("error" in result) {
@@ -674,85 +795,196 @@ export function SettingsWorkspace() {
         <Box sx={{ ...surface, overflow: "hidden" }}>
           <Box sx={{ px: 2.5, pt: 2.1, pb: 1.75, borderBottom: "1px solid #F0F2F5" }}>
             <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", letterSpacing: "-0.01em" }}>
-              Live agent phone
+              Live agents
             </Typography>
             <Typography sx={{ mt: 0.4, fontSize: "var(--font-size-body)", color: "#6B7280", lineHeight: 1.45 }}>
-              Default number used when a call needs to transfer to a live agent.
+              Transfer destinations such as Front desk or Backup. Add as many as you need.
             </Typography>
           </Box>
-          <Box sx={{ px: 2.5, py: 2.25, maxWidth: 420 }}>
-            <Typography sx={labelSx}>Phone number</Typography>
-            <TextField
-              fullWidth
-              size="small"
-              value={draft.liveAgentNumber}
-              placeholder="Phone number"
-              onChange={(event) =>
-                updateDraft({ liveAgentNumber: event.target.value.replace(/\D/g, "") })
-              }
-              sx={{
-                ...fieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...fieldSx["& .MuiOutlinedInput-root"],
-                  pl: 0,
-                  minHeight: 40,
-                },
-              }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start" sx={{ mr: 0 }}>
+          <Stack spacing={1.75} sx={{ px: 2.5, py: 2.25 }}>
+            {draft.liveAgents.map((agent, index) => {
+              const countryCodes = (COUNTRY_CODES as readonly string[]).includes(agent.countryCode)
+                ? COUNTRY_CODES
+                : [agent.countryCode || "+1", ...COUNTRY_CODES];
+              const displayName = agent.label.trim() || suggestedLiveAgentName(index);
+              const phoneError = validatePhoneNumber(agent.phoneNumber, agent.countryCode || "+1");
+              return (
+                <Box
+                  key={agent.id}
+                  sx={{
+                    p: 1.75,
+                    borderRadius: "10px",
+                    border: "1px solid #EEF0F4",
+                    bgcolor: "#FAFBFC",
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: "center", justifyContent: "space-between", mb: 1.25 }}
+                  >
+                    <Typography sx={{ fontSize: 13, fontWeight: 650, color: "#5C6478" }}>
+                      {displayName}
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                      <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 600, color: agent.isActive ? "primary.main" : "#98A2B3" }}>
+                          {agent.isActive ? "Active" : "Inactive"}
+                        </Typography>
+                        <Switch
+                          checked={agent.isActive}
+                          onChange={(_, checked) => updateLiveAgent(agent.id, { isActive: checked })}
+                          sx={switchSx}
+                          slotProps={{
+                            input: { "aria-label": `Toggle ${displayName} active` },
+                          }}
+                        />
+                      </Stack>
+                      {draft.liveAgents.length > 1 ? (
+                        <Box
+                          component="button"
+                          type="button"
+                          aria-label={`Remove ${displayName}`}
+                          onClick={() => removeLiveAgent(agent.id)}
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 32,
+                            height: 32,
+                            border: "1px solid #E8EAEE",
+                            borderRadius: "8px",
+                            bgcolor: "#FFFFFF",
+                            color: "#98A2B3",
+                            cursor: "pointer",
+                            "&:hover": { color: "#D14343", borderColor: "#F0CACA", bgcolor: "#FFF7F7" },
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </Box>
+                      ) : null}
+                    </Stack>
+                  </Stack>
+                  <Stack spacing={1.5}>
+                    <Box>
+                      <Typography sx={labelSx}>Name</Typography>
                       <TextField
-                        select
+                        fullWidth
                         size="small"
-                        value={
-                          (COUNTRY_CODES as readonly string[]).includes(draft.liveAgentCountryCode)
-                            ? draft.liveAgentCountryCode
-                            : draft.liveAgentCountryCode || "+1"
-                        }
-                        onChange={(event) => updateDraft({ liveAgentCountryCode: event.target.value })}
-                        variant="standard"
-                        slotProps={{
-                          select: {
-                            disableUnderline: true,
-                            IconComponent: () => (
-                              <ChevronDown size={14} style={{ marginRight: 4, color: "#6B7280" }} />
+                        value={agent.label}
+                        placeholder={suggestedLiveAgentName(index)}
+                        onChange={(event) => updateLiveAgent(agent.id, { label: event.target.value })}
+                        sx={{
+                          ...fieldSx,
+                          "& .MuiOutlinedInput-root": {
+                            ...fieldSx["& .MuiOutlinedInput-root"],
+                            minHeight: 40,
+                          },
+                        }}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography sx={labelSx}>Phone number</Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={agent.phoneNumber}
+                        placeholder={phoneSamplePlaceholder(agent.countryCode || "+1")}
+                        error={Boolean(phoneError)}
+                        helperText={phoneError || undefined}
+                        onChange={(event) =>
+                          updateLiveAgent(agent.id, {
+                            phoneNumber: sanitizePhoneDigits(
+                              event.target.value,
+                              agent.countryCode || "+1",
                             ),
+                          })
+                        }
+                        sx={{
+                          ...fieldSx,
+                          "& .MuiOutlinedInput-root": {
+                            ...fieldSx["& .MuiOutlinedInput-root"],
+                            pl: 0,
+                            minHeight: 40,
+                          },
+                          "& .MuiFormHelperText-root": {
+                            mx: 0,
+                            mt: 0.6,
+                            fontSize: 12,
+                          },
+                        }}
+                        slotProps={{
+                          htmlInput: {
+                            inputMode: "numeric",
+                            maxLength: getPhoneLengthRule(agent.countryCode || "+1").max,
                           },
                           input: {
-                            sx: {
-                              pl: 1.25,
-                              pr: 0.5,
-                              minWidth: 62,
-                              fontSize: "var(--font-size-body)",
-                              fontWeight: 600,
-                            },
+                            startAdornment: (
+                              <InputAdornment position="start" sx={{ mr: 0 }}>
+                                <TextField
+                                  select
+                                  size="small"
+                                  value={agent.countryCode || "+1"}
+                                  onChange={(event) => {
+                                    const countryCode = event.target.value;
+                                    updateLiveAgent(agent.id, {
+                                      countryCode,
+                                      phoneNumber: sanitizePhoneDigits(agent.phoneNumber, countryCode),
+                                    });
+                                  }}
+                                  variant="standard"
+                                  slotProps={{
+                                    select: {
+                                      disableUnderline: true,
+                                      IconComponent: () => (
+                                        <ChevronDown size={14} style={{ marginRight: 4, color: "#6B7280" }} />
+                                      ),
+                                    },
+                                    input: {
+                                      sx: {
+                                        pl: 1.25,
+                                        pr: 0.5,
+                                        minWidth: 62,
+                                        fontSize: "var(--font-size-body)",
+                                        fontWeight: 600,
+                                      },
+                                    },
+                                  }}
+                                  sx={{
+                                    "& .MuiInputBase-root": {
+                                      minHeight: 40,
+                                      bgcolor: "#F7F8FA",
+                                      borderRight: "1px solid #E2E5EC",
+                                    },
+                                  }}
+                                >
+                                  {countryCodes.map((code) => (
+                                    <MenuItem key={code} value={code}>
+                                      {code}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </InputAdornment>
+                            ),
                           },
                         }}
-                        sx={{
-                          "& .MuiInputBase-root": {
-                            minHeight: 40,
-                            bgcolor: "#F7F8FA",
-                            borderRight: "1px solid #E2E5EC",
-                          },
-                        }}
-                      >
-                        {(
-                          (COUNTRY_CODES as readonly string[]).includes(draft.liveAgentCountryCode)
-                            ? COUNTRY_CODES
-                            : [draft.liveAgentCountryCode || "+1", ...COUNTRY_CODES]
-                        ).map((code) => (
-                          <MenuItem key={code} value={code}>
-                            {code}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          </Box>
+                      />
+                    </Box>
+                  </Stack>
+                </Box>
+              );
+            })}
+            <Box>
+              <Button
+                variant="secondary"
+                startIcon={<Plus size={15} />}
+                onClick={addLiveAgent}
+                sx={{ px: 1.75 }}
+              >
+                Add another agent
+              </Button>
+            </Box>
+          </Stack>
         </Box>
       </Stack>
 
