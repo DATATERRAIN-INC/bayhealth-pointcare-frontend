@@ -4,6 +4,7 @@ import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 export interface SettingsPayload {
   calls_enabled: boolean;
   recording_enabled: boolean;
+  text_sms_enabled: boolean;
   start_time: string;
   end_time: string;
   timezone: string;
@@ -66,6 +67,10 @@ export function mapSettingsPayload(response: unknown): SettingsPayload {
   return {
     calls_enabled: asBoolean(source.calls_enabled, false),
     recording_enabled: asBoolean(source.recording_enabled, true),
+    text_sms_enabled: asBoolean(
+      source.text_sms_enabled ?? source.sms_enabled ?? source.text_enabled,
+      false,
+    ),
     start_time: String(source.start_time ?? "09:00:00"),
     end_time: String(source.end_time ?? "17:00:00"),
     timezone: String(source.timezone ?? "America/New_York"),

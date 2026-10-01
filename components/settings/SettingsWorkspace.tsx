@@ -37,6 +37,7 @@ interface CallingSettings {
   maxCallsPerRun: string;
   callTriggerCount: string;
   recording: boolean;
+  textSmsEnabled: boolean;
   liveAgentCountryCode: string;
   liveAgentNumber: string;
 }
@@ -49,6 +50,7 @@ const defaultSettings: CallingSettings = {
   maxCallsPerRun: "5",
   callTriggerCount: "3",
   recording: true,
+  textSmsEnabled: false,
   liveAgentCountryCode: "+1",
   liveAgentNumber: "",
 };
@@ -184,6 +186,7 @@ function toDraft(payload: SettingsPayload): CallingSettings {
     maxCallsPerRun: String(payload.max_calls_per_run),
     callTriggerCount: String(payload.call_trigger_count),
     recording: payload.recording_enabled,
+    textSmsEnabled: payload.text_sms_enabled,
     liveAgentCountryCode: payload.live_agent_country_code || "+1",
     liveAgentNumber: payload.live_agent_number || "",
   };
@@ -215,6 +218,7 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
     payload: {
       calls_enabled: settings.callsEnabled,
       recording_enabled: settings.recording,
+      text_sms_enabled: settings.textSmsEnabled,
       start_time: start,
       end_time: end,
       timezone,
@@ -367,6 +371,17 @@ function SettingsSkeleton() {
         <Box sx={{ flex: 1 }}>
           <Skeleton animation="wave" variant="rounded" width={140} height={18} sx={bone} />
           <Skeleton animation="wave" variant="rounded" width="75%" height={14} sx={{ ...bone, mt: 1 }} />
+        </Box>
+        <Skeleton animation="wave" variant="rounded" width={72} height={24} sx={bone} />
+      </Stack>
+
+      <Stack
+        direction="row"
+        sx={{ ...surface, alignItems: "center", justifyContent: "space-between", gap: 2, px: 2.5, py: 2 }}
+      >
+        <Box sx={{ flex: 1 }}>
+          <Skeleton animation="wave" variant="rounded" width={120} height={18} sx={bone} />
+          <Skeleton animation="wave" variant="rounded" width="65%" height={14} sx={{ ...bone, mt: 1 }} />
         </Box>
         <Skeleton animation="wave" variant="rounded" width={72} height={24} sx={bone} />
       </Stack>
@@ -647,6 +662,13 @@ export function SettingsWorkspace() {
           description="Record calls so they can be reviewed later. Transcripts are shown either way."
           checked={draft.recording}
           onChange={(recording) => updateDraft({ recording })}
+        />
+
+        <SettingToggle
+          title="Text / SMS"
+          description="Send text or SMS messages as part of patient outreach."
+          checked={draft.textSmsEnabled}
+          onChange={(textSmsEnabled) => updateDraft({ textSmsEnabled })}
         />
 
         <Box sx={{ ...surface, overflow: "hidden" }}>

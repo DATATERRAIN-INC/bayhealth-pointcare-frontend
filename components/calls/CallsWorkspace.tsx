@@ -5,28 +5,43 @@ import {
   Box,
   Skeleton,
   Stack,
-  Tab,
-  Tabs,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
   Typography,
 } from "@mui/material";
-import { X } from "lucide-react";
+import { MessageSquareText, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AppTable } from "@/components/shared/AppTable";
 import { TablePager } from "@/components/shared/TablePager";
-import { statusMeta, type OutreachCall, type OutreachStatus } from "@/data/gapCalls";
+import {
+  channelMeta,
+  statusMeta,
+  type OutreachCall,
+  type OutreachChannel,
+  type OutreachStatus,
+} from "@/data/gapCalls";
 import { useGetCallTranscriptQuery, useGetCallsQuery } from "@/lib/api/callsApi";
 
 type FilterKey = "all" | OutreachStatus;
+type ChannelFilterKey = "all" | OutreachChannel;
 
 const filters: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "completed", label: "Completed" },
   { key: "in_progress", label: "In progress" },
   { key: "not_attended", label: "Not attended" },
+];
+
+const channelFilters: {
+  key: ChannelFilterKey;
+  label: string;
+  icon?: typeof Phone;
+}[] = [
+  { key: "all", label: "All" },
+  { key: "call", label: "Call", icon: Phone },
+  { key: "text", label: "Text", icon: MessageSquareText },
 ];
 
 const surface = {
@@ -65,6 +80,31 @@ function StatusChip({ status }: { status: OutreachStatus }) {
       }}
     >
       {label}
+    </Box>
+  );
+}
+
+function ChannelChip({ channel }: { channel: OutreachChannel }) {
+  const meta = channelMeta[channel];
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        px: 1.1,
+        py: 0.35,
+        borderRadius: "999px",
+        bgcolor: meta.bg,
+        color: meta.color,
+        fontSize: "var(--font-size-body)",
+        fontWeight: 600,
+        lineHeight: 1.3,
+        whiteSpace: "nowrap",
+        flexShrink: 0,
+      }}
+    >
+      {meta.label}
     </Box>
   );
 }
@@ -146,12 +186,18 @@ function TranscriptBody({
 }) {
   if (call.messages.length === 0) {
     const message = loading
-      ? "Loading transcript…"
+      ? call.channel === "text"
+        ? "Loading messages…"
+        : "Loading transcript…"
       : error
-        ? "Could not load this transcript."
-        : call.status === "in_progress"
+        ? call.channel === "text"
+          ? "Could not load this text thread."
+          : "Could not load this transcript."
+        : call.channel === "call" && call.status === "in_progress"
           ? "Transcript available after the call ends."
-          : "No transcript for this call.";
+          : call.channel === "text"
+            ? "No messages for this text."
+            : "No transcript for this call.";
     return (
       <Box
         sx={{
@@ -209,13 +255,98 @@ function TranscriptBody({
   );
 }
 
-function MobileCallFilters({
+function TypeFilterTabs({
+  items,
+  value,
+  onChange,
+  "aria-label": ariaLabel,
+}: {
+  items: { key: ChannelFilterKey; label: string; icon?: typeof Phone }[];
+  value: ChannelFilterKey;
+  onChange: (next: ChannelFilterKey) => void;
+  "aria-label"?: string;
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      sx={{
+        alignItems: "center",
+        alignSelf: "flex-start",
+        maxWidth: "100%",
+      }}
+    >
+      <Box
+        role="tablist"
+        aria-label={ariaLabel}
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          p: "3px",
+          borderRadius: "10px",
+          bgcolor: "#F1F5F9",
+          border: "1px solid #E2E8F0",
+          maxWidth: "100%",
+          overflowX: "auto",
+          "&::-webkit-scrollbar": { display: "none" },
+          scrollbarWidth: "none",
+        }}
+      >
+        {items.map((item) => {
+          const selected = value === item.key;
+          const Icon = item.icon;
+          return (
+            <Box
+              key={item.key}
+              component="button"
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => onChange(item.key)}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 0.75,
+                flexShrink: 0,
+                minWidth: 72,
+                px: 1.6,
+                py: 0.7,
+                border: 0,
+                borderRadius: "8px",
+                bgcolor: selected ? "primary.main" : "transparent",
+                color: selected ? "#FFFFFF" : "#64748B",
+                boxShadow: selected ? "0 1px 2px rgb(47 114 185 / 0.28)" : "none",
+                fontFamily: "inherit",
+                fontSize: "var(--font-size-body)",
+                fontWeight: selected ? 650 : 550,
+                lineHeight: 1.25,
+                cursor: "pointer",
+                transition:
+                  "background-color 140ms ease, color 140ms ease, box-shadow 140ms ease",
+                "&:hover": {
+                  color: selected ? "#FFFFFF" : "#1C2A6B",
+                  bgcolor: selected ? "primary.main" : "rgb(255 255 255 / 0.7)",
+                },
+              }}
+            >
+              {Icon ? <Icon size={14} strokeWidth={2.25} aria-hidden /> : null}
+              {item.label}
+            </Box>
+          );
+        })}
+      </Box>
+    </Stack>
+  );
+}
+
+function StatusFilterRow({
   value,
   counts,
   onChange,
 }: {
   value: FilterKey;
-  counts: Partial<Record<FilterKey, number>>;
+  counts?: Partial<Record<FilterKey, number>>;
   onChange: (next: FilterKey) => void;
 }) {
   return (
@@ -223,17 +354,15 @@ function MobileCallFilters({
       direction="row"
       spacing={1}
       sx={{
+        alignItems: "center",
         overflowX: "auto",
-        pb: 0.25,
-        mx: -0.25,
-        px: 0.25,
         "&::-webkit-scrollbar": { display: "none" },
         scrollbarWidth: "none",
       }}
     >
       {filters.map((item) => {
         const selected = value === item.key;
-        const count = counts[item.key];
+        const count = counts?.[item.key];
         return (
           <Box
             key={item.key}
@@ -242,20 +371,25 @@ function MobileCallFilters({
             onClick={() => onChange(item.key)}
             sx={{
               flexShrink: 0,
-              border: selected ? "1px solid transparent" : "1px solid #E4E7EC",
-              borderRadius: 999,
-              px: 1.75,
-              py: 0.8,
-              bgcolor: selected ? "primary.main" : "#FFFFFF",
-              color: selected ? "#FFFFFF" : "text.primary",
+              border: selected ? "1px solid #C9DBF2" : "1px solid transparent",
+              borderRadius: "999px",
+              px: 1.35,
+              py: 0.45,
+              bgcolor: selected ? "#EAF3FB" : "transparent",
+              color: selected ? "primary.main" : "#667085",
               fontFamily: "inherit",
               fontSize: "var(--font-size-body)",
-              fontWeight: 600,
-              lineHeight: 1.2,
+              fontWeight: selected ? 650 : 500,
+              lineHeight: 1.25,
               cursor: "pointer",
+              transition: "background-color 120ms ease, color 120ms ease, border-color 120ms ease",
+              "&:hover": {
+                bgcolor: selected ? "#EAF3FB" : "#F3F5F8",
+                color: selected ? "primary.main" : "text.primary",
+              },
             }}
           >
-            {count == null ? item.label : `${item.label} ${count}`}
+            {count == null ? item.label : `${item.label} · ${count}`}
           </Box>
         );
       })}
@@ -263,48 +397,27 @@ function MobileCallFilters({
   );
 }
 
-function CallFilterTabs({
-  value,
-  onChange,
+function StatusFilterBar({
+  status,
+  statusCounts,
+  onStatusChange,
 }: {
-  value: FilterKey;
-  onChange: (next: FilterKey) => void;
+  status: FilterKey;
+  statusCounts?: Partial<Record<FilterKey, number>>;
+  onStatusChange: (next: FilterKey) => void;
 }) {
   return (
-    <Tabs
-      value={value}
-      onChange={(_, next: FilterKey) => onChange(next)}
-      variant="scrollable"
-      scrollButtons="auto"
+    <Box
       sx={{
-        minHeight: 48,
-        px: 1,
-        borderBottom: "1px solid #E9EDF2",
-        bgcolor: "#FFFFFF",
-        "& .MuiTabs-indicator": {
-          height: 2,
-          bgcolor: "primary.main",
-        },
-        "& .MuiTab-root": {
-          minHeight: 48,
-          minWidth: "auto",
-          px: 1.75,
-          py: 0,
-          textTransform: "none",
-          fontSize: "var(--font-size-body)",
-          fontWeight: 500,
-          color: "#8B93A7",
-          "&.Mui-selected": {
-            color: "text.primary",
-            fontWeight: 600,
-          },
-        },
+        px: { xs: 1.5, sm: 2 },
+        pt: 1.6,
+        pb: 1.35,
+        borderBottom: "1px solid #E8ECF1",
+        bgcolor: "#FAFBFC",
       }}
     >
-      {filters.map((item) => (
-        <Tab key={item.key} value={item.key} disableRipple label={item.label} />
-      ))}
-    </Tabs>
+      <StatusFilterRow value={status} counts={statusCounts} onChange={onStatusChange} />
+    </Box>
   );
 }
 
@@ -312,6 +425,7 @@ const CALLS_PER_PAGE = 10;
 
 export function CallsWorkspace() {
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("all");
   const [selectedId, setSelectedId] = useState("");
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -321,24 +435,30 @@ export function CallsWorkspace() {
     page: page + 1,
     pageSize,
     status: filter === "all" ? undefined : filter,
+    channel: channelFilter === "all" ? undefined : channelFilter,
   });
   const showSkeleton = !isError && !data && (isUninitialized || isLoading || isFetching);
 
-  const paged = data?.results ?? [];
-  const rowCount = data?.count ?? 0;
-  const fullListLoaded = filter === "all" && paged.length > 0 && paged.length === rowCount;
+  const apiRows = data?.results ?? [];
+  // Client-side channel filter as a fallback if the API ignores `channel`.
+  const paged = useMemo(() => {
+    if (channelFilter === "all") return apiRows;
+    return apiRows.filter((row) => row.channel === channelFilter);
+  }, [apiRows, channelFilter]);
+  const rowCount = channelFilter === "all" || paged.length === apiRows.length ? (data?.count ?? 0) : paged.length;
+  const fullListLoaded =
+    filter === "all" && channelFilter === "all" && apiRows.length > 0 && apiRows.length === (data?.count ?? 0);
   const filterCounts = useMemo(() => {
     const counts: Partial<Record<FilterKey, number>> = { all: rowCount || undefined };
     if (fullListLoaded) {
-      counts.completed = paged.filter((call) => call.status === "completed").length;
-      counts.in_progress = paged.filter((call) => call.status === "in_progress").length;
-      counts.not_attended = paged.filter((call) => call.status === "not_attended").length;
+      counts.completed = apiRows.filter((call) => call.status === "completed").length;
+      counts.in_progress = apiRows.filter((call) => call.status === "in_progress").length;
+      counts.not_attended = apiRows.filter((call) => call.status === "not_attended").length;
     } else if (filter !== "all") {
       counts[filter] = rowCount;
     }
     return counts;
-  }, [filter, fullListLoaded, paged, rowCount]);
-
+  }, [apiRows, filter, fullListLoaded, rowCount]);
   const selected = paged.find((call) => call.id === selectedId);
   const mobileCall = paged.find((call) => call.id === mobileOpenId);
   const transcriptCall = mobileCall?.retellCallId ? mobileCall : selected?.retellCallId ? selected : undefined;
@@ -372,18 +492,24 @@ export function CallsWorkspace() {
     }
   }
 
+  function itemLabel(call: OutreachCall): string {
+    return call.channel === "text" ? `Text #${call.callNumber}` : `Call #${call.callNumber}`;
+  }
+
   function transcriptLabel(call: OutreachCall): string {
     const available = call.hasTranscript || call.messages.length > 0;
     if (call.id === selected?.id && available) return "Viewing";
     if (available) return "View";
-    if (call.status === "in_progress") return "After call ends";
-    return "No transcript";
+    if (call.channel === "call" && call.status === "in_progress") return "After call ends";
+    return call.channel === "text" ? "No messages" : "No transcript";
   }
 
   function emptyMessage() {
-    if (isError) return "Could not load calls. Check the API connection and try again.";
-    if (filter === "all") return "No calls yet.";
-    return "No calls in this status.";
+    if (isError) return "Could not load outreach activity. Check the API connection and try again.";
+    if (channelFilter === "call") return filter === "all" ? "No calls yet." : "No calls in this status.";
+    if (channelFilter === "text") return filter === "all" ? "No texts yet." : "No texts in this status.";
+    if (filter === "all") return "No calls or texts yet.";
+    return "No activity in this status.";
   }
 
   function skeletonRows() {
@@ -393,6 +519,9 @@ export function CallsWorkspace() {
         <TableCell>
           <Skeleton variant="rounded" animation="wave" width="62%" height={16} sx={bone} />
           <Skeleton variant="rounded" animation="wave" width="38%" height={12} sx={{ ...bone, mt: 0.75 }} />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="rounded" animation="wave" width={64} height={22} sx={{ ...bone, borderRadius: "999px" }} />
         </TableCell>
         <TableCell>
           <Skeleton variant="rounded" animation="wave" width={96} height={22} sx={{ ...bone, borderRadius: "999px" }} />
@@ -429,7 +558,8 @@ export function CallsWorkspace() {
 
   return (
     <Stack spacing={2}>
-      <Box>
+      <Stack spacing={1.25}>
+        <Box>
           <Typography
             sx={{
               fontSize: { xs: 24, lg: 26 },
@@ -439,7 +569,7 @@ export function CallsWorkspace() {
               lineHeight: 1.2,
             }}
           >
-            Calls and transcripts
+            Calls, texts, and transcripts
           </Typography>
           <Typography
             sx={{
@@ -450,9 +580,21 @@ export function CallsWorkspace() {
               lineHeight: 1.45,
             }}
           >
-            Track each outreach call. Transcripts appear when a call is complete. Times in America/New_York (EDT).
+            Track outreach calls and texts. Filter by type or status. Times in America/New_York (EDT).
           </Typography>
-      </Box>
+        </Box>
+        <TypeFilterTabs
+          aria-label="Filter by type"
+          items={channelFilters}
+          value={channelFilter}
+          onChange={(next) => {
+            setChannelFilter(next);
+            setPage(0);
+            setSelectedId("");
+            setMobileOpenId(null);
+          }}
+        />
+      </Stack>
 
       <Box
         sx={{
@@ -473,9 +615,10 @@ export function CallsWorkspace() {
             borderRadius: "10px",
           }}
         >
-          <CallFilterTabs
-            value={filter}
-            onChange={(next) => {
+          <StatusFilterBar
+            status={filter}
+            statusCounts={filterCounts}
+            onStatusChange={(next) => {
               setFilter(next);
               setPage(0);
               setSelectedId("");
@@ -491,7 +634,7 @@ export function CallsWorkspace() {
             >
               <TableHead>
                 <TableRow>
-                  {["Patient", "Status", "Started", "Duration", "Transcript"].map((heading) => (
+                  {["Patient", "Type", "Status", "Started", "Duration", "Transcript"].map((heading) => (
                     <TableCell key={heading}>
                       {heading}
                     </TableCell>
@@ -502,7 +645,7 @@ export function CallsWorkspace() {
                 {showSkeleton
                   ? skeletonRows()
                   : paged.length === 0
-                  ? emptyRow(5)
+                  ? emptyRow(6)
                   : paged.map((call) => {
                   const active = call.id === selected?.id;
                   const label = transcriptLabel(call);
@@ -523,8 +666,11 @@ export function CallsWorkspace() {
                           {call.patientName}
                         </Typography>
                         <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", mt: 0.15 }}>
-                          Call #{call.callNumber}
+                          {itemLabel(call)}
                         </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <ChannelChip channel={call.channel} />
                       </TableCell>
                       <TableCell>
                         <StatusLabel status={call.status} />
@@ -592,16 +738,27 @@ export function CallsWorkspace() {
         ) : null}
       </Box>
 
-      <Stack spacing={1.5} sx={{ display: { xs: "flex", lg: "none" } }}>
-        <MobileCallFilters
-          value={filter}
-          counts={filterCounts}
-          onChange={(next) => {
-            setFilter(next);
-            setPage(0);
-            setMobileOpenId(null);
+      <Stack spacing={1.25} sx={{ display: { xs: "flex", lg: "none" } }}>
+        <Box
+          sx={{
+            ...surface,
+            px: 1.5,
+            pt: 1.4,
+            pb: 1.25,
+            borderColor: "#E8ECF1",
+            bgcolor: "#FAFBFC",
           }}
-        />
+        >
+          <StatusFilterRow
+            value={filter}
+            counts={filterCounts}
+            onChange={(next) => {
+              setFilter(next);
+              setPage(0);
+              setMobileOpenId(null);
+            }}
+          />
+        </Box>
         {showSkeleton ? (
           <Stack spacing={1.5}>
             {Array.from({ length: 3 }, (_, index) => (
@@ -639,10 +796,16 @@ export function CallsWorkspace() {
                   <Typography sx={{ fontWeight: 700, color: "text.primary", lineHeight: 1.3 }}>
                     {call.patientName}
                   </Typography>
-                  <StatusChip status={call.status} />
+                  <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexShrink: 0 }}>
+                    <ChannelChip channel={call.channel} />
+                    <StatusChip status={call.status} />
+                  </Stack>
                 </Stack>
                 <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>
-                  Call #{call.callNumber} · {call.started} EDT · {call.status === "in_progress" ? "live" : call.duration}
+                  {itemLabel(call)} · {call.started} EDT
+                  {call.channel === "call"
+                    ? ` · ${call.status === "in_progress" ? "live" : call.duration}`
+                    : ""}
                 </Typography>
 
                 {transcriptReady && open ? (
@@ -685,7 +848,7 @@ export function CallsWorkspace() {
                   >
                     {open ? "Hide transcript" : "View transcript"}
                   </Box>
-                ) : call.status === "in_progress" ? (
+                ) : call.channel === "call" && call.status === "in_progress" ? (
                   <Typography sx={{ mt: 1.15, fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
                     Transcript available after the call ends.
                   </Typography>
@@ -799,14 +962,16 @@ function TranscriptPanel({
       >
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", letterSpacing: "-0.01em" }}>
-            Transcript · {call.patientName}
+            {call.channel === "text" ? "Text thread" : "Transcript"} · {call.patientName}
           </Typography>
           <Typography sx={{ mt: 0.4, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>
-            Call #{call.callNumber} · {call.dateLabel} · {call.windowLabel}
-            {call.hasTranscript || call.messages.length > 0 ? ` · ${call.duration}` : ""}
+            {call.channel === "text" ? `Text #${call.callNumber}` : `Call #${call.callNumber}`} · {call.dateLabel}
+            {call.windowLabel ? ` · ${call.windowLabel}` : ""}
+            {call.channel === "call" && (call.hasTranscript || call.messages.length > 0) ? ` · ${call.duration}` : ""}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
+          <ChannelChip channel={call.channel} />
           <StatusLabel status={call.status} />
           <Box
             component="button"

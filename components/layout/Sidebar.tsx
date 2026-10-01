@@ -21,7 +21,7 @@ import type { User } from "@/types/user";
 
 const navItems = [
   { href: "/patients", label: "Patients", icon: Users },
-  { href: "/calls", label: "Calls and transcripts", icon: Phone },
+  { href: "/calls", label: "Calls and texts", icon: Phone },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
