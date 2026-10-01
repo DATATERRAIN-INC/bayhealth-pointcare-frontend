@@ -92,6 +92,26 @@ export function isAccessTokenExpired(): boolean {
   return expires.getTime() <= Date.now();
 }
 
+/** Mask email for display, e.g. r*****1@dataterrain.com */
+export function maskEmail(email: string): string {
+  try {
+    const trimmed = (email || "").trim();
+    if (!trimmed) return "your email";
+    const at = trimmed.indexOf("@");
+    if (at <= 0) return trimmed;
+
+    const local = trimmed.slice(0, at);
+    const domain = trimmed.slice(at);
+    if (!local) return `*****${domain}`;
+    if (local.length <= 2) {
+      return `${local[0]}*****${domain}`;
+    }
+    return `${local[0]}${"*".repeat(Math.min(5, local.length - 2))}${local[local.length - 1]}${domain}`;
+  } catch {
+    return "your email";
+  }
+}
+
 /**
  * Safe in-app path for post-login navigation.
  * Allows only relative paths. Rejects protocol-relative URLs and /login loops.
