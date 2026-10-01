@@ -2,6 +2,7 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { CreatePatientRequest, PatientApiRecord } from "@/types/patient";
 import type { PatientRecord, PatientSource } from "@/data/gapPatients";
+import { normalizeCountryCode, sanitizePhoneDigits } from "@/lib/phone";
 
 /** Build the exact POST/PATCH body keys expected by `/api/ai-call/patients/`. */
 export function buildPatientSaveBody(input: {
@@ -12,18 +13,20 @@ export function buildPatientSaveBody(input: {
   doctor: string;
   countryCode: string;
   phoneNumber: string;
-  reasonForCall: string;
+  serviceName: string;
+  isBlocked?: boolean;
 }): CreatePatientRequest {
-  const serviceName = input.reasonForCall.trim();
+  const countryCode = normalizeCountryCode(input.countryCode);
   return {
     first_name: input.firstName.trim(),
     last_name: input.lastName.trim(),
     address: input.address.trim(),
     dob: input.dobIso,
     doctor: input.doctor.trim(),
-    country_code: input.countryCode.trim() || "+1",
-    phone_number: input.phoneNumber.trim(),
-    service_name: serviceName,
+    service_name: input.serviceName.trim(),
+    country_code: countryCode,
+    phone_number: sanitizePhoneDigits(input.phoneNumber, countryCode),
+    is_blocked: Boolean(input.isBlocked),
   };
 }
 

@@ -160,7 +160,22 @@ export const callsApi = createApi({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
       transformResponse: (response: CallTranscriptResponse) => (response.transcript ?? []).map(mapTranscriptLine),
     }),
+    startOutboundCall: builder.mutation<unknown, { id: number | string }>({
+      query: ({ id }) => {
+        const numericId = Number(id);
+        return {
+          url: "/outbound/",
+          method: "POST",
+          body: { id: Number.isFinite(numericId) ? numericId : id },
+        };
+      },
+      invalidatesTags: [{ type: "Call", id: "LIST" }],
+    }),
   }),
 });
 
-export const { useGetCallsQuery, useGetCallTranscriptQuery } = callsApi;
+export const {
+  useGetCallsQuery,
+  useGetCallTranscriptQuery,
+  useStartOutboundCallMutation,
+} = callsApi;

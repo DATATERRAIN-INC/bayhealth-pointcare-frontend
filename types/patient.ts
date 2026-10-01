@@ -4,9 +4,10 @@ export interface CreatePatientRequest {
   address: string;
   dob: string;
   doctor: string;
+  service_name: string;
   country_code: string;
   phone_number: string;
-  service_name: string;
+  is_blocked: boolean;
 }
 
 export interface PatientApiRecord {

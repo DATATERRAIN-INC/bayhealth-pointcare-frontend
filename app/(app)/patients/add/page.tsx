@@ -24,6 +24,12 @@ import {
 } from "@/lib/api/patientsApi";
 import { parseAuthApiError } from "@/lib/api/authErrors";
 import { formatDobInput, isFutureDate, parseDobInput, toIsoDate } from "@/data/gapPatients";
+import {
+  getPhoneLengthRule,
+  phoneSamplePlaceholder,
+  sanitizePhoneDigits,
+  validatePhoneNumber,
+} from "@/lib/phone";
 
 const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
 
@@ -33,7 +39,7 @@ const initialForm = {
   dob: "",
   address: "",
   doctor: "",
-  reasonForCall: "",
+  serviceName: "",
   countryCode: "+1",
   phoneNumber: "",
 };
@@ -114,12 +120,14 @@ function PhoneField({
   label,
   countryCode,
   phoneNumber,
+  error,
   onCountryCodeChange,
   onPhoneChange,
 }: {
   label: string;
   countryCode: string;
   phoneNumber: string;
+  error?: string;
   onCountryCodeChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
 }) {
@@ -134,16 +142,27 @@ function PhoneField({
         fullWidth
         size="small"
         value={phoneNumber}
-        placeholder="Phone number"
-        onChange={(event) => onPhoneChange(event.target.value.replace(/\D/g, ""))}
+        placeholder={phoneSamplePlaceholder(countryCode)}
+        error={Boolean(error)}
+        helperText={error || undefined}
+        onChange={(event) => onPhoneChange(sanitizePhoneDigits(event.target.value, countryCode))}
         sx={{
           ...fieldSx,
           "& .MuiOutlinedInput-root": {
             ...fieldSx["& .MuiOutlinedInput-root"],
             pl: 0,
           },
+          "& .MuiFormHelperText-root": {
+            mx: 0,
+            mt: 0.6,
+            fontSize: 12,
+          },
         }}
         slotProps={{
+          htmlInput: {
+            inputMode: "numeric",
+            maxLength: getPhoneLengthRule(countryCode).max,
+          },
           input: {
             startAdornment: (
               <InputAdornment position="start" sx={{ mr: 0 }}>
@@ -218,9 +237,9 @@ function AddPatientPage() {
       dob: isoToDobInput(patient.dateOfBirth),
       address: patient.address,
       doctor: patient.doctor,
-      reasonForCall: patient.serviceName || "",
+      serviceName: patient.serviceName || "",
       countryCode: patient.countryCode || "+1",
-      phoneNumber: patient.phoneNumber,
+      phoneNumber: sanitizePhoneDigits(patient.phoneNumber, patient.countryCode || "+1"),
     });
   }
 
@@ -246,12 +265,16 @@ function AddPatientPage() {
       setFormError("First name, last name, address, and doctor are required.");
       return;
     }
-    if (!form.reasonForCall.trim()) {
-      setFormError("Reason for call is required.");
+    if (!form.serviceName.trim()) {
+      setFormError("Service name is required.");
       return;
     }
-    if (!form.phoneNumber.trim()) {
-      setFormError("Patient phone is required.");
+    const phoneError = validatePhoneNumber(form.phoneNumber, form.countryCode, {
+      required: true,
+      fieldLabel: "patient phone number",
+    });
+    if (phoneError) {
+      setFormError(phoneError);
       return;
     }
     if (!parsedDob) {
@@ -271,7 +294,8 @@ function AddPatientPage() {
       doctor: form.doctor,
       countryCode: form.countryCode,
       phoneNumber: form.phoneNumber,
-      reasonForCall: form.reasonForCall,
+      serviceName: form.serviceName,
+      isBlocked: isEdit ? Boolean(patient?.blocked) : false,
     });
 
     try {
@@ -443,9 +467,9 @@ function AddPatientPage() {
               <FieldLabel>Reason for call</FieldLabel>
               <TextField
                 fullWidth
-                placeholder="Enter service name"
-                value={form.reasonForCall}
-                onChange={(event) => updateField("reasonForCall", event.target.value)}
+                placeholder="e.g. mammogram"
+                value={form.serviceName}
+                onChange={(event) => updateField("serviceName", event.target.value)}
                 sx={fieldSx}
               />
             </Box>
@@ -482,7 +506,17 @@ function AddPatientPage() {
               label="Patient phone"
               countryCode={form.countryCode}
               phoneNumber={form.phoneNumber}
-              onCountryCodeChange={(value) => updateField("countryCode", value)}
+              error={
+                validatePhoneNumber(form.phoneNumber, form.countryCode) ?? undefined
+              }
+              onCountryCodeChange={(value) => {
+                setForm((current) => ({
+                  ...current,
+                  countryCode: value,
+                  phoneNumber: sanitizePhoneDigits(current.phoneNumber, value),
+                }));
+                setFormError("");
+              }}
               onPhoneChange={(value) => updateField("phoneNumber", value)}
             />
           </Box>
