@@ -8,6 +8,8 @@ export interface SettingsPayload {
   end_time: string;
   timezone: string;
   max_calls_per_run: number;
+  /** How many times a call should be triggered for a patient. */
+  call_trigger_count: number;
   live_agent_country_code: string;
   live_agent_number: string;
 }
@@ -47,22 +49,28 @@ function asBoolean(value: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
-function asCount(value: unknown): number {
+function asCount(value: unknown, fallback = 5): number {
   const count = Number(value);
-  if (!Number.isFinite(count) || count < 1) return 5;
+  if (!Number.isFinite(count) || count < 1) return fallback;
   return Math.round(count);
 }
 
 export function mapSettingsPayload(response: unknown): SettingsPayload {
   const source = unwrap(response);
   const countryCode = String(source.live_agent_country_code ?? "+1").trim() || "+1";
+  const triggerCount =
+    source.call_trigger_count ??
+    source.max_call_attempts ??
+    source.call_attempts ??
+    source.retry_count;
   return {
     calls_enabled: asBoolean(source.calls_enabled, false),
     recording_enabled: asBoolean(source.recording_enabled, true),
     start_time: String(source.start_time ?? "09:00:00"),
     end_time: String(source.end_time ?? "17:00:00"),
     timezone: String(source.timezone ?? "America/New_York"),
-    max_calls_per_run: asCount(source.max_calls_per_run),
+    max_calls_per_run: asCount(source.max_calls_per_run, 5),
+    call_trigger_count: asCount(triggerCount, 3),
     live_agent_country_code: countryCode.startsWith("+") ? countryCode : `+${countryCode}`,
     live_agent_number: String(source.live_agent_number ?? "").replace(/\D/g, ""),
   };

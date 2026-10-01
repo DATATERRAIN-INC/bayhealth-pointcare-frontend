@@ -35,6 +35,7 @@ interface CallingSettings {
   end: string;
   timezone: string;
   maxCallsPerRun: string;
+  callTriggerCount: string;
   recording: boolean;
   liveAgentCountryCode: string;
   liveAgentNumber: string;
@@ -46,6 +47,7 @@ const defaultSettings: CallingSettings = {
   end: "05:00 PM",
   timezone: timezones[0].value,
   maxCallsPerRun: "5",
+  callTriggerCount: "3",
   recording: true,
   liveAgentCountryCode: "+1",
   liveAgentNumber: "",
@@ -180,6 +182,7 @@ function toDraft(payload: SettingsPayload): CallingSettings {
     end: apiTimeToLabel(payload.end_time),
     timezone: normalizeTimezone(payload.timezone),
     maxCallsPerRun: String(payload.max_calls_per_run),
+    callTriggerCount: String(payload.call_trigger_count),
     recording: payload.recording_enabled,
     liveAgentCountryCode: payload.live_agent_country_code || "+1",
     liveAgentNumber: payload.live_agent_number || "",
@@ -195,6 +198,10 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
   const maxCalls = Number(settings.maxCallsPerRun);
   if (!Number.isInteger(maxCalls) || maxCalls < 1) {
     return { error: "Enter a whole number of calls per run." };
+  }
+  const triggerCount = Number(settings.callTriggerCount);
+  if (!Number.isInteger(triggerCount) || triggerCount < 1) {
+    return { error: "Enter how many times a call should be triggered (1 or more)." };
   }
   const timezone = settings.timezone.trim();
   if (!timezone) {
@@ -212,6 +219,7 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
       end_time: end,
       timezone,
       max_calls_per_run: maxCalls,
+      call_trigger_count: triggerCount,
       live_agent_country_code: settings.liveAgentCountryCode || "+1",
       live_agent_number: liveAgentNumber,
     },
@@ -244,7 +252,7 @@ function windowSummary(settings: CallingSettings): string {
   const hours = Math.round((diff / 60) * 10) / 10;
   const hourLabel = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
   const status = settings.callsEnabled
-    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run.`
+    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}.`
     : "Outreach calls are turned off.";
   return `Calls run ${settings.start.replace(/^0/, "")} – ${settings.end.replace(/^0/, "")} ${zone} (${hourLabel} hours). ${status} Calls outside this window wait until it opens.`;
 }
@@ -341,7 +349,7 @@ function SettingsSkeleton() {
               gap: 1.75,
             }}
           >
-            {Array.from({ length: 4 }, (_, index) => (
+            {Array.from({ length: 5 }, (_, index) => (
               <Box key={`settings-field-${index}`}>
                 <Skeleton animation="wave" variant="rounded" width={110} height={14} sx={bone} />
                 <Skeleton animation="wave" variant="rounded" height={40} sx={{ ...bone, mt: 0.75 }} />
@@ -599,6 +607,18 @@ export function SettingsWorkspace() {
                   type="number"
                   value={draft.maxCallsPerRun}
                   onChange={(event) => updateDraft({ maxCallsPerRun: event.target.value })}
+                  sx={fieldSx}
+                  slotProps={{ htmlInput: { min: 1, step: 1, inputMode: "numeric" } }}
+                />
+              </Box>
+              <Box>
+                <Typography sx={labelSx}>Times to trigger call</Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  value={draft.callTriggerCount}
+                  onChange={(event) => updateDraft({ callTriggerCount: event.target.value })}
                   sx={fieldSx}
                   slotProps={{ htmlInput: { min: 1, step: 1, inputMode: "numeric" } }}
                 />
