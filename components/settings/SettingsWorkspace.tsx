@@ -106,6 +106,8 @@ const fieldSx = {
     borderRadius: "8px",
     bgcolor: "#FFFFFF",
     overflow: "hidden",
+    minHeight: 40,
+    alignItems: "center",
     "& fieldset": { borderColor: "#E2E5EC" },
     "&:hover fieldset": { borderColor: "#C5CAD6" },
     "&.Mui-focused fieldset": { borderColor: "primary.main", borderWidth: 1 },
@@ -113,8 +115,10 @@ const fieldSx = {
   "& .MuiOutlinedInput-input": {
     fontSize: "var(--font-size-body)",
     py: 0,
-    height: "100%",
+    height: 40,
     boxSizing: "border-box",
+    display: "flex",
+    alignItems: "center",
     "&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus, &:-webkit-autofill:active":
       {
         WebkitTextFillColor: "#0F172A",
@@ -124,6 +128,20 @@ const fieldSx = {
         boxShadow: "0 0 0 1000px #FFFFFF inset",
         WebkitBoxShadow: "0 0 0 1000px #FFFFFF inset",
       },
+  },
+  "& .MuiSelect-select": {
+    display: "flex",
+    alignItems: "center",
+    py: "0 !important",
+    minHeight: "40px !important",
+    height: "40px !important",
+    boxSizing: "border-box",
+    lineHeight: "40px",
+  },
+  "& .MuiSelect-icon": {
+    top: "50%",
+    transform: "translateY(-50%)",
+    right: 10,
   },
 } as const;
 
@@ -722,8 +740,8 @@ export function SettingsWorkspace() {
                   sx={fieldSx}
                   slotProps={{
                     select: {
-                      IconComponent: () => (
-                        <ChevronDown size={15} style={{ marginRight: 10, color: "#6B7280" }} />
+                      IconComponent: ({ className }) => (
+                        <ChevronDown className={className} size={15} color="#6B7280" />
                       ),
                     },
                   }}
