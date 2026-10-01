@@ -2,6 +2,34 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { CreatePatientRequest, PatientApiRecord } from "@/types/patient";
 import type { PatientRecord, PatientSource } from "@/data/gapPatients";
+import { normalizeCountryCode, sanitizePhoneDigits } from "@/lib/phone";
+
+/** Build the exact POST/PATCH body keys expected by `/api/ai-call/patients/`. */
+export function buildPatientSaveBody(input: {
+  firstName: string;
+  lastName: string;
+  address: string;
+  dobIso: string;
+  doctor: string;
+  countryCode: string;
+  phoneNumber: string;
+  serviceName: string;
+  isBlocked?: boolean;
+}): CreatePatientRequest {
+  const countryCode = normalizeCountryCode(input.countryCode);
+  return {
+    first_name: input.firstName.trim(),
+    last_name: input.lastName.trim(),
+    address: input.address.trim(),
+    dob: input.dobIso,
+    doctor: input.doctor.trim(),
+    service_name: input.serviceName.trim(),
+    country_code: countryCode,
+    phone_number: sanitizePhoneDigits(input.phoneNumber, countryCode),
+    is_blocked: Boolean(input.isBlocked),
+  };
+}
+
 function asBlocked(value: unknown): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
@@ -76,8 +104,7 @@ export function mapApiPatient(record: PatientApiRecord): PatientRecord {
     source: mapSource(record.source),
     countryCode: record.country_code?.trim() || "+1",
     phoneNumber: record.phone_number?.trim() || "",
-    liveAgentCountryCode: record.live_agent_country_code?.trim() || "+1",
-    liveAgentNumber: record.live_agent_number?.trim() || "",
+    serviceName: record.service_name?.trim() || record.reason_for_call?.trim() || "",
     blocked: asBlocked(record.is_blocked),
   };
 }

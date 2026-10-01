@@ -4,6 +4,11 @@ export interface CallApiRecord {
   patient_name?: string;
   retell_call_id?: string;
   flow?: string;
+  /** Outreach channel: call | text | sms */
+  channel?: string;
+  type?: string;
+  message_type?: string;
+  communication_type?: string;
   status?: string;
   from_number?: string;
   to_number?: string;

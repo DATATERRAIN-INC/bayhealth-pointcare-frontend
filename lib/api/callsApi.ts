@@ -1,6 +1,6 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
-import type { OutreachCall, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
+import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
 
 const CALL_TIME_ZONE = "America/New_York";
@@ -9,6 +9,7 @@ export interface CallsQuery {
   page: number;
   pageSize: number;
   status?: OutreachStatus;
+  channel?: OutreachChannel;
 }
 
 export interface CallsPage {
@@ -29,6 +30,16 @@ function mapStatus(value: string | undefined): OutreachStatus {
     return "in_progress";
   }
   return "not_attended";
+}
+
+export function mapChannel(record: CallApiRecord): OutreachChannel {
+  const raw = String(
+    record.channel ?? record.type ?? record.message_type ?? record.communication_type ?? record.flow ?? "call",
+  )
+    .trim()
+    .toLowerCase();
+  if (raw.includes("sms") || raw.includes("text") || raw === "message") return "text";
+  return "call";
 }
 
 function formatClock(iso: string | null | undefined): string {
@@ -76,13 +87,15 @@ function formatDuration(seconds: number | null | undefined): string {
 
 export function mapApiCall(record: CallApiRecord): OutreachCall {
   const id = String(record.id);
+  const channel = mapChannel(record);
   return {
     id,
     callNumber: Number(record.id) || 0,
     patientName: record.patient_name?.trim() || "Unknown patient",
+    channel,
     status: mapStatus(record.status),
     started: formatClock(record.started_at),
-    duration: formatDuration(record.duration_seconds),
+    duration: channel === "text" ? "—" : formatDuration(record.duration_seconds),
     dateLabel: formatDateLabel(record.started_at),
     windowLabel: formatWindowLabel(record.started_at),
     hasTranscript: Boolean(record.has_transcript),
@@ -107,12 +120,13 @@ export const callsApi = createApi({
   tagTypes: ["Call"],
   endpoints: (builder) => ({
     getCalls: builder.query<CallsPage, CallsQuery>({
-      query: ({ page, pageSize, status }) => {
+      query: ({ page, pageSize, status, channel }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
         });
         if (status) params.set("status", status);
+        if (channel) params.set("channel", channel);
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => {
@@ -146,7 +160,22 @@ export const callsApi = createApi({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
       transformResponse: (response: CallTranscriptResponse) => (response.transcript ?? []).map(mapTranscriptLine),
     }),
+    startOutboundCall: builder.mutation<unknown, { id: number | string }>({
+      query: ({ id }) => {
+        const numericId = Number(id);
+        return {
+          url: "/outbound/",
+          method: "POST",
+          body: { id: Number.isFinite(numericId) ? numericId : id },
+        };
+      },
+      invalidatesTags: [{ type: "Call", id: "LIST" }],
+    }),
   }),
 });
 
-export const { useGetCallsQuery, useGetCallTranscriptQuery } = callsApi;
+export const {
+  useGetCallsQuery,
+  useGetCallTranscriptQuery,
+  useStartOutboundCallMutation,
+} = callsApi;

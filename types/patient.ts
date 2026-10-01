@@ -4,10 +4,10 @@ export interface CreatePatientRequest {
   address: string;
   dob: string;
   doctor: string;
+  service_name: string;
   country_code: string;
   phone_number: string;
-  live_agent_country_code: string;
-  live_agent_number: string;
+  is_blocked: boolean;
 }
 
 export interface PatientApiRecord {
@@ -20,8 +20,8 @@ export interface PatientApiRecord {
   doctor: string;
   country_code?: string;
   phone_number?: string;
-  live_agent_country_code?: string;
-  live_agent_number?: string;
+  service_name?: string;
+  reason_for_call?: string;
   source?: string;
   is_blocked?: boolean;
   blocked?: boolean;
