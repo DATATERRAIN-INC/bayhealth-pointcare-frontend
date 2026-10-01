@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, MenuItem, Skeleton, Stack, Switch, TextField, Typography } from "@mui/material";
+import {
+  Box,
+  InputAdornment,
+  MenuItem,
+  Skeleton,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
@@ -18,6 +27,8 @@ const timezones = [
   { value: "America/Los_Angeles", label: "America/Los_Angeles (PDT)" },
 ] as const;
 
+const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
+
 interface CallingSettings {
   callsEnabled: boolean;
   start: string;
@@ -25,6 +36,8 @@ interface CallingSettings {
   timezone: string;
   maxCallsPerRun: string;
   recording: boolean;
+  liveAgentCountryCode: string;
+  liveAgentNumber: string;
 }
 
 const defaultSettings: CallingSettings = {
@@ -34,6 +47,8 @@ const defaultSettings: CallingSettings = {
   timezone: timezones[0].value,
   maxCallsPerRun: "5",
   recording: true,
+  liveAgentCountryCode: "+1",
+  liveAgentNumber: "",
 };
 
 const fieldSx = {
@@ -166,6 +181,8 @@ function toDraft(payload: SettingsPayload): CallingSettings {
     timezone: normalizeTimezone(payload.timezone),
     maxCallsPerRun: String(payload.max_calls_per_run),
     recording: payload.recording_enabled,
+    liveAgentCountryCode: payload.live_agent_country_code || "+1",
+    liveAgentNumber: payload.live_agent_number || "",
   };
 }
 
@@ -183,6 +200,10 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
   if (!timezone) {
     return { error: "Choose a timezone." };
   }
+  const liveAgentNumber = settings.liveAgentNumber.trim();
+  if (!liveAgentNumber) {
+    return { error: "Live agent phone is required." };
+  }
   return {
     payload: {
       calls_enabled: settings.callsEnabled,
@@ -191,6 +212,8 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
       end_time: end,
       timezone,
       max_calls_per_run: maxCalls,
+      live_agent_country_code: settings.liveAgentCountryCode || "+1",
+      live_agent_number: liveAgentNumber,
     },
   };
 }
@@ -605,6 +628,90 @@ export function SettingsWorkspace() {
           checked={draft.recording}
           onChange={(recording) => updateDraft({ recording })}
         />
+
+        <Box sx={{ ...surface, overflow: "hidden" }}>
+          <Box sx={{ px: 2.5, pt: 2.1, pb: 1.75, borderBottom: "1px solid #F0F2F5" }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", letterSpacing: "-0.01em" }}>
+              Live agent phone
+            </Typography>
+            <Typography sx={{ mt: 0.4, fontSize: "var(--font-size-body)", color: "#6B7280", lineHeight: 1.45 }}>
+              Default number used when a call needs to transfer to a live agent.
+            </Typography>
+          </Box>
+          <Box sx={{ px: 2.5, py: 2.25, maxWidth: 420 }}>
+            <Typography sx={labelSx}>Phone number</Typography>
+            <TextField
+              fullWidth
+              size="small"
+              value={draft.liveAgentNumber}
+              placeholder="Phone number"
+              onChange={(event) =>
+                updateDraft({ liveAgentNumber: event.target.value.replace(/\D/g, "") })
+              }
+              sx={{
+                ...fieldSx,
+                "& .MuiOutlinedInput-root": {
+                  ...fieldSx["& .MuiOutlinedInput-root"],
+                  pl: 0,
+                  minHeight: 40,
+                },
+              }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start" sx={{ mr: 0 }}>
+                      <TextField
+                        select
+                        size="small"
+                        value={
+                          (COUNTRY_CODES as readonly string[]).includes(draft.liveAgentCountryCode)
+                            ? draft.liveAgentCountryCode
+                            : draft.liveAgentCountryCode || "+1"
+                        }
+                        onChange={(event) => updateDraft({ liveAgentCountryCode: event.target.value })}
+                        variant="standard"
+                        slotProps={{
+                          select: {
+                            disableUnderline: true,
+                            IconComponent: () => (
+                              <ChevronDown size={14} style={{ marginRight: 4, color: "#6B7280" }} />
+                            ),
+                          },
+                          input: {
+                            sx: {
+                              pl: 1.25,
+                              pr: 0.5,
+                              minWidth: 62,
+                              fontSize: "var(--font-size-body)",
+                              fontWeight: 600,
+                            },
+                          },
+                        }}
+                        sx={{
+                          "& .MuiInputBase-root": {
+                            minHeight: 40,
+                            bgcolor: "#F7F8FA",
+                            borderRight: "1px solid #E2E5EC",
+                          },
+                        }}
+                      >
+                        {(
+                          (COUNTRY_CODES as readonly string[]).includes(draft.liveAgentCountryCode)
+                            ? COUNTRY_CODES
+                            : [draft.liveAgentCountryCode || "+1", ...COUNTRY_CODES]
+                        ).map((code) => (
+                          <MenuItem key={code} value={code}>
+                            {code}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+          </Box>
+        </Box>
       </Stack>
 
       <Stack

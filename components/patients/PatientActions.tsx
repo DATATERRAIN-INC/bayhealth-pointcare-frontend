@@ -184,7 +184,6 @@ function ViewPatientDialog({
   onClose: () => void;
 }) {
   const phone = patient.phoneNumber ? `${patient.countryCode} ${patient.phoneNumber}` : "";
-  const liveAgent = patient.liveAgentNumber ? `${patient.liveAgentCountryCode} ${patient.liveAgentNumber}` : "";
 
   return (
     <Dialog
@@ -287,7 +286,7 @@ function ViewPatientDialog({
           <InfoTile label="Date of birth" value={formatPatientDob(patient.dateOfBirth)} />
           <InfoTile label="Doctor" value={patient.doctor} />
           <InfoTile label="Phone" value={phone} />
-          <InfoTile label="Live agent" value={liveAgent} />
+          <InfoTile label="Reason for call" value={patient.serviceName} />
           <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
             <InfoTile label="Address" value={patient.address} />
           </Box>

@@ -35,7 +35,7 @@ export function BachLogo({ showTagline = false, width = BACH_LOGO_WIDTH }: BachL
             color: "#2E9FD4",
           }}
         >
-          Point of Care
+          Gap in Care
         </Typography>
       ) : null}
     </Box>

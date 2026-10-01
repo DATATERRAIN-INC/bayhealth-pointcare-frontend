@@ -16,7 +16,13 @@ import { ChevronDown, Phone, UserRound, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AppBreadcrumbs } from "@/components/shared/AppBreadcrumbs";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
-import { useCreatePatientMutation, useGetPatientsQuery, useUpdatePatientMutation } from "@/lib/api/patientsApi";
+import {
+  buildPatientSaveBody,
+  useCreatePatientMutation,
+  useGetPatientsQuery,
+  useUpdatePatientMutation,
+} from "@/lib/api/patientsApi";
+import { parseAuthApiError } from "@/lib/api/authErrors";
 import { formatDobInput, isFutureDate, parseDobInput, toIsoDate } from "@/data/gapPatients";
 
 const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
@@ -27,10 +33,9 @@ const initialForm = {
   dob: "",
   address: "",
   doctor: "",
+  reasonForCall: "",
   countryCode: "+1",
   phoneNumber: "",
-  liveAgentCountryCode: "+1",
-  liveAgentNumber: "",
 };
 
 const fieldSx = {
@@ -213,10 +218,9 @@ function AddPatientPage() {
       dob: isoToDobInput(patient.dateOfBirth),
       address: patient.address,
       doctor: patient.doctor,
+      reasonForCall: patient.serviceName || "",
       countryCode: patient.countryCode || "+1",
       phoneNumber: patient.phoneNumber,
-      liveAgentCountryCode: patient.liveAgentCountryCode || "+1",
-      liveAgentNumber: patient.liveAgentNumber,
     });
   }
 
@@ -242,8 +246,12 @@ function AddPatientPage() {
       setFormError("First name, last name, address, and doctor are required.");
       return;
     }
-    if (!form.phoneNumber.trim() || !form.liveAgentNumber.trim()) {
-      setFormError("Patient phone and live agent phone are required.");
+    if (!form.reasonForCall.trim()) {
+      setFormError("Reason for call is required.");
+      return;
+    }
+    if (!form.phoneNumber.trim()) {
+      setFormError("Patient phone is required.");
       return;
     }
     if (!parsedDob) {
@@ -255,17 +263,16 @@ function AddPatientPage() {
       return;
     }
 
-    const body = {
-      first_name: form.firstName.trim(),
-      last_name: form.lastName.trim(),
-      address: form.address.trim(),
-      dob: toIsoDate(parsedDob),
+    const body = buildPatientSaveBody({
+      firstName: form.firstName,
+      lastName: form.lastName,
+      address: form.address,
+      dobIso: toIsoDate(parsedDob),
       doctor: form.doctor,
-      country_code: form.countryCode,
-      phone_number: form.phoneNumber.trim(),
-      live_agent_country_code: form.liveAgentCountryCode,
-      live_agent_number: form.liveAgentNumber.trim(),
-    };
+      countryCode: form.countryCode,
+      phoneNumber: form.phoneNumber,
+      reasonForCall: form.reasonForCall,
+    });
 
     try {
       if (isEdit) {
@@ -275,11 +282,7 @@ function AddPatientPage() {
       }
       setSuccessOpen(true);
     } catch (error) {
-      const data =
-        typeof error === "object" && error !== null && "data" in error
-          ? (error as { data?: { detail?: string; message?: string } }).data
-          : undefined;
-      setFormError(data?.detail || data?.message || "Could not save patient. Please try again.");
+      setFormError(parseAuthApiError(error, "Could not save patient. Please try again."));
     }
   }
 
@@ -436,7 +439,17 @@ function AddPatientPage() {
                 sx={fieldSx}
               />
             </Box>
-            <Box sx={{ gridColumn: { xs: "1", md: "1 / -1", lg: "2 / -1" } }}>
+            <Box>
+              <FieldLabel>Reason for call</FieldLabel>
+              <TextField
+                fullWidth
+                placeholder="Enter service name"
+                value={form.reasonForCall}
+                onChange={(event) => updateField("reasonForCall", event.target.value)}
+                sx={fieldSx}
+              />
+            </Box>
+            <Box sx={{ gridColumn: { xs: "1", md: "1 / -1" } }}>
               <FieldLabel>Address</FieldLabel>
               <TextField
                 fullWidth
@@ -459,9 +472,10 @@ function AddPatientPage() {
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+              gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr)" },
               columnGap: { xs: 2, lg: 2.5 },
               rowGap: 2,
+              maxWidth: { md: 420 },
             }}
           >
             <PhoneField
@@ -470,13 +484,6 @@ function AddPatientPage() {
               phoneNumber={form.phoneNumber}
               onCountryCodeChange={(value) => updateField("countryCode", value)}
               onPhoneChange={(value) => updateField("phoneNumber", value)}
-            />
-            <PhoneField
-              label="Live agent phone"
-              countryCode={form.liveAgentCountryCode}
-              phoneNumber={form.liveAgentNumber}
-              onCountryCodeChange={(value) => updateField("liveAgentCountryCode", value)}
-              onPhoneChange={(value) => updateField("liveAgentNumber", value)}
             />
           </Box>
 

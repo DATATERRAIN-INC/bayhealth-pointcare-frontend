@@ -8,6 +8,8 @@ export interface SettingsPayload {
   end_time: string;
   timezone: string;
   max_calls_per_run: number;
+  live_agent_country_code: string;
+  live_agent_number: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -53,6 +55,7 @@ function asCount(value: unknown): number {
 
 export function mapSettingsPayload(response: unknown): SettingsPayload {
   const source = unwrap(response);
+  const countryCode = String(source.live_agent_country_code ?? "+1").trim() || "+1";
   return {
     calls_enabled: asBoolean(source.calls_enabled, false),
     recording_enabled: asBoolean(source.recording_enabled, true),
@@ -60,6 +63,8 @@ export function mapSettingsPayload(response: unknown): SettingsPayload {
     end_time: String(source.end_time ?? "17:00:00"),
     timezone: String(source.timezone ?? "America/New_York"),
     max_calls_per_run: asCount(source.max_calls_per_run),
+    live_agent_country_code: countryCode.startsWith("+") ? countryCode : `+${countryCode}`,
+    live_agent_number: String(source.live_agent_number ?? "").replace(/\D/g, ""),
   };
 }
 

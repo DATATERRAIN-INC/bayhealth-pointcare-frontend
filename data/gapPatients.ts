@@ -11,8 +11,8 @@ export interface PatientRecord {
   source: PatientSource;
   countryCode: string;
   phoneNumber: string;
-  liveAgentCountryCode: string;
-  liveAgentNumber: string;
+  /** Reason for call / service name */
+  serviceName: string;
   blocked: boolean;
 }
 

@@ -66,9 +66,25 @@ function readErrorPayload(data: unknown): string {
     "new_password",
     "confirm_password",
     "password",
+    "service_name",
+    "reason_for_call",
+    "first_name",
+    "last_name",
+    "phone_number",
+    "dob",
+    "doctor",
+    "address",
     "non_field_errors",
   ]) {
     const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) {
+      return value[0].trim();
+    }
+  }
+
+  // Fallback: first field-level validation message from the API.
+  for (const value of Object.values(record)) {
     if (typeof value === "string" && value.trim()) return value.trim();
     if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) {
       return value[0].trim();
