@@ -77,7 +77,7 @@ export function ConfirmLogoutDialog({ open, onClose, onConfirm }: ConfirmLogoutD
             maxWidth: 320,
           }}
         >
-          Are you sure you want to sign out of Point of Care?
+          Are you sure you want to sign out of Gap in Care?
         </Typography>
 
         <Stack direction="row" spacing={1.5} sx={{ mt: 3.5, width: "100%", maxWidth: 320 }}>

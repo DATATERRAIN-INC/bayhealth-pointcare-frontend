@@ -19,7 +19,7 @@ import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { TablePager } from "@/components/shared/TablePager";
 import { useGetPatientsQuery, useUploadPatientsMutation } from "@/lib/api/patientsApi";
-import { formatPatientDob, type PatientRecord } from "@/data/gapPatients";
+import { formatPatientDob, formatPatientPhone, type PatientRecord } from "@/data/gapPatients";
 
 const PATIENTS_PER_PAGE = 10;
 const blockedReporter: { current: (message: string) => void } = { current: () => undefined };
@@ -104,6 +104,26 @@ const columns: GridColDef<PatientRecord>[] = [
         </Typography>
         {params.row.blocked ? <BlockedChip /> : null}
       </Stack>
+    ),
+  },
+  {
+    field: "phoneNumber",
+    headerName: "Phone",
+    flex: 1,
+    minWidth: 150,
+    valueGetter: (_value, row) => formatPatientPhone(row.countryCode, row.phoneNumber),
+    renderCell: (params) => (
+      <Typography
+        noWrap
+        sx={{
+          fontSize: "var(--font-size-body)",
+          fontWeight: 550,
+          color: params.row.blocked ? "#8B93A7" : "text.primary",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {formatPatientPhone(params.row.countryCode, params.row.phoneNumber)}
+      </Typography>
     ),
   },
   {
@@ -363,7 +383,18 @@ export function PatientsTableWorkspace() {
                 </Box>
                 <PatientActions patient={patient} onBlocked={setBlockSuccess} />
               </Stack>
-              <Typography sx={{ mt: 0.6, fontSize: "var(--font-size-body)", color: "#5C6478", lineHeight: 1.4 }}>
+              <Typography
+                sx={{
+                  mt: 0.55,
+                  fontSize: "var(--font-size-body)",
+                  fontWeight: 600,
+                  color: "text.primary",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {formatPatientPhone(patient.countryCode, patient.phoneNumber)}
+              </Typography>
+              <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#5C6478", lineHeight: 1.4 }}>
                 {patient.address}
               </Typography>
               <Box

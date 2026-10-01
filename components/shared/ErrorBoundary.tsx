@@ -25,7 +25,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("PointCare UI error:", error, info.componentStack);
+    console.error("Gap in Care UI error:", error, info.componentStack);
   }
 
   private handleRetry = () => {
