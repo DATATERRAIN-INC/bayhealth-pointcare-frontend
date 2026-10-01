@@ -28,7 +28,7 @@ export function LoginPageView() {
   }, [router]);
 
   return (
-    <AuthShell title="Sign in" subtitle="Use your BACH Point of Care account.">
+    <AuthShell title="Sign in" subtitle="Use your BACH Gap in Care account.">
       {ready ? (
         <Suspense
           fallback={

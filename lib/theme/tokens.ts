@@ -1,5 +1,5 @@
 /**
- * Design tokens for PointCare.
+ * Design tokens for Gap in Care.
  * Mirrored as CSS variables in app/globals.css — keep both in sync.
  */
 

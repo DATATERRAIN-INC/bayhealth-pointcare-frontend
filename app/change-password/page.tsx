@@ -30,7 +30,7 @@ export default function ChangePasswordPage() {
       <Stack spacing={2} sx={{ width: "100%", maxWidth: 440, bgcolor: "#FFFFFF", borderRadius: "12px", p: 4 }}>
         <Typography sx={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}>Change your password</Typography>
         <Typography sx={{ fontSize: "var(--font-size-body)", color: "#6B7280", lineHeight: 1.5 }}>
-          This account must set a new password before the rest of PointCare can open. Ask your administrator to complete the password change.
+          This account must set a new password before the rest of Gap in Care can open. Ask your administrator to complete the password change.
         </Typography>
         <Button
           onClick={() => {

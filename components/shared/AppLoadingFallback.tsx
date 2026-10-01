@@ -2,7 +2,7 @@
 
 import { CircularProgress, Stack, Typography } from "@mui/material";
 
-export function AppLoadingFallback({ label = "Loading PointCare…" }: { label?: string }) {
+export function AppLoadingFallback({ label = "Loading Gap in Care…" }: { label?: string }) {
   return (
     <Stack
       spacing={1.5}

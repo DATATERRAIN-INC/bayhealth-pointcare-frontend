@@ -80,7 +80,7 @@ export function AppShell({ children }: AppShellProps) {
       >
         <CircularProgress size={24} />
         <Typography variant="body2" color="text.secondary">
-          Loading PointCare…
+          Loading Gap in Care…
         </Typography>
       </Stack>
     );

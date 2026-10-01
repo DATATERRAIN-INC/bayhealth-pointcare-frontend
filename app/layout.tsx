@@ -20,8 +20,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "PointCare",
-  applicationName: "PointCare",
+  title: "Gap in Care",
+  applicationName: "Gap in Care",
   description: "Close care gaps with AI-assisted outreach calls.",
   icons: {
     icon: [{ url: "/favicon.png", type: "image/png", sizes: "64x64" }],

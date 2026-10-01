@@ -28,6 +28,15 @@ export function formatPatientDob(isoDate: string): string {
   });
 }
 
+/** Formats country code + national number, e.g. "+1 3025550101". */
+export function formatPatientPhone(countryCode: string, phoneNumber: string): string {
+  const phone = phoneNumber.trim();
+  if (!phone) return "—";
+  const code = countryCode.trim() || "+1";
+  const normalized = code.startsWith("+") ? code : `+${code}`;
+  return `${normalized} ${phone}`;
+}
+
 export function parseIsoDate(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
   if (!match) return null;
