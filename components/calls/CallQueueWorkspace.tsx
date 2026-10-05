@@ -444,7 +444,7 @@ export function CallQueueWorkspace() {
 
   function onAction(id: string, action: QueueAction) {
     if (action === "details") {
-      setDetailsItem(processing.find((item) => item.id === id) ?? waiting.find((item) => item.id === id) ?? null);
+      setDetailsItem(processing?.find((item) => item.id === id) ?? waiting.find((item) => item.id === id) ?? null);
       return;
     }
     if (action === "start") {
@@ -577,18 +577,18 @@ export function CallQueueWorkspace() {
                 <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#D14343", fontSize: "var(--font-size-body)" }}>
                   {getApiErrorMessage(processingError, "Could not load calls that are currently processing.")}
                 </Typography>
-              ) : processingLoading && processing.length === 0 ? (
+              ) : processingLoading && !processing?.length ? (
                 <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
                   Loading active calls…
                 </Typography>
-              ) : processing.length === 0 ? (
+              ) : !processing?.length ? (
                 <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
                   No calls are on the line right now.
                 </Typography>
               ) : (
                 <>
                   <QueueTableHeader />
-                  {processing.map((item) => (
+                  {processing?.map((item) => (
                     <QueueListRow
                       key={item.id}
                       item={item}
@@ -654,7 +654,7 @@ export function CallQueueWorkspace() {
               <Typography
                 sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}
               >
-                {processing.length > 0
+                {(processing?.length ?? 0) > 0
                   ? "All remaining capacity is on active calls."
                   : "No calls are waiting right now."}
               </Typography>

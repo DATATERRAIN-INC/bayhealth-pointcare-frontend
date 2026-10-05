@@ -776,7 +776,7 @@ export function SettingsWorkspace() {
                   fullWidth
                   size="small"
                   type="number"
-                  value={draft.reminderTimeframeHours}
+                  value={draft?.reminderTimeframeHours ?? ""}
                   onChange={(event) => updateDraft({ reminderTimeframeHours: event.target.value })}
                   sx={fieldSx}
                   slotProps={{ htmlInput: { min: 1, max: 720, step: 1, inputMode: "numeric" } }}
