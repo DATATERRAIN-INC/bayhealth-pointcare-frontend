@@ -434,7 +434,7 @@ export function CallsWorkspace() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
   const [tablePending, setTablePending] = useState(true);
-  const { data, isUninitialized, isLoading, isFetching, isError, isPending } = useGetCallsQuery({
+  const { data, isUninitialized, isLoading, isFetching, isError } = useGetCallsQuery({
     page: page + 1,
     pageSize,
     status: filter === "all" ? undefined : filter,
@@ -443,12 +443,12 @@ export function CallsWorkspace() {
 
   useEffect(() => {
     if (!tablePending) return;
-    if (isFetching || isPending || isLoading) return;
+    if (isFetching || isLoading) return;
     setTablePending(false);
-  }, [tablePending, isFetching, isPending, isLoading]);
+  }, [tablePending, isFetching, isLoading]);
 
   const showSkeleton =
-    !isError && (tablePending || isPending || isUninitialized || isLoading || isFetching);
+    !isError && (tablePending || isUninitialized || isLoading || isFetching);
 
   function beginTableFetch() {
     setTablePending(true);
