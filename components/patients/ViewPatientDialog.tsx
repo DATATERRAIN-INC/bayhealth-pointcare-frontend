@@ -12,6 +12,7 @@ import {
 import { Check, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatPatientDob, type PatientRecord } from "@/data/gapPatients";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { elevation } from "@/lib/theme/tokens";
 
 type CallUiPhase = "calling" | "success";
@@ -28,13 +29,7 @@ const softBounce = keyframes`
 `;
 
 export function actionErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === "object" && error !== null && "data" in error) {
-    const data = (error as { data?: { detail?: string; message?: string; error?: string } }).data;
-    if (data?.detail) return data.detail;
-    if (data?.message) return data.message;
-    if (data?.error) return data.error;
-  }
-  return fallback;
+  return getApiErrorMessage(error, fallback);
 }
 
 function initialsFrom(name: string): string {

@@ -2,6 +2,7 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { CreatePatientRequest, PatientApiRecord } from "@/types/patient";
 import type { PatientRecord, PatientSource } from "@/data/gapPatients";
+import { parseCallStatus } from "@/components/shared/CallStatusChip";
 import { normalizeCountryCode, sanitizePhoneDigits } from "@/lib/phone";
 
 /** Build the exact POST/PATCH body keys expected by `/api/ai-call/patients/`. */
@@ -106,6 +107,7 @@ export function mapApiPatient(record: PatientApiRecord): PatientRecord {
     phoneNumber: record.phone_number?.trim() || "",
     serviceName: record.service_name?.trim() || record.reason_for_call?.trim() || "",
     blocked: asBlocked(record.is_blocked),
+    callStatus: parseCallStatus(record.call_status),
   };
 }
 

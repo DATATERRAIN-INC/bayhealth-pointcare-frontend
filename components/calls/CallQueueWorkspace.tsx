@@ -19,11 +19,17 @@ import {
   Eye,
   Pause,
   Phone,
-  Trash2,
+  RefreshCw,
   X,
 } from "lucide-react";
 import { channelMeta } from "@/data/gapCalls";
-import { createDummyCallQueue, reindexQueueItems } from "@/data/dummyCallQueue";
+import {
+  callQueueSubscriptionOptions,
+  useGetCallQueueQuery,
+  useGetQueuedCallQueueQuery,
+  useStartOutboundCallMutation,
+} from "@/lib/api/callsApi";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { ActionsMenu } from "@/components/shared/ActionsMenu";
 import { TablePager } from "@/components/shared/TablePager";
 import { Button } from "@/components/ui/Button";
@@ -166,7 +172,7 @@ type QueueAction =
   | "move_down"
   | "details";
 
-const QUEUE_TABLE_COLUMNS = "48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px 100px 44px";
+const QUEUE_TABLE_COLUMNS = "48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px 44px";
 const QUEUE_TABLE_COLUMNS_XS = "44px minmax(0, 1fr) 40px";
 
 function QueueTableHeader() {
@@ -181,14 +187,14 @@ function QueueTableHeader() {
         borderBottom: "1px solid #F0F2F5",
       }}
     >
-      {["#", "Patient", "Reason", "Status", "Estimate", "Wait", "Action"].map((heading) => (
+      {["#", "Patient", "Reason", "Status", "Estimate", "Action"].map((heading) => (
         <Typography
           key={heading}
           sx={{
             fontSize: "var(--font-size-body)",
             fontWeight: 650,
             color: "#8B93A7",
-            textAlign: heading === "Wait" || heading === "Action" ? "right" : "left",
+            textAlign: heading === "Action" ? "right" : "left",
           }}
         >
           {heading}
@@ -253,20 +259,17 @@ function actionItemsFor(
 
 function QueueListRow({
   item,
-  now,
   canMoveUp,
   canMoveDown,
   onAction,
   highlight,
 }: {
   item: QueueCallItem;
-  now: number;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onAction: (id: string, action: QueueAction) => void;
   highlight?: boolean;
 }) {
-  const waitFrom = item.queuedAt || item.startedAt;
   return (
     <Box
       sx={{
@@ -340,19 +343,6 @@ function QueueListRow({
         <EstimateLabel estimate={item.estimate} />
       </Box>
 
-      <Typography
-        sx={{
-          display: { xs: "none", lg: "block" },
-          fontSize: "var(--font-size-body)",
-          fontWeight: 600,
-          color: "#3F4A5A",
-          fontVariantNumeric: "tabular-nums",
-          textAlign: "right",
-        }}
-      >
-        {formatWait(waitFrom, now)}
-      </Typography>
-
       <Box sx={{ justifySelf: "end" }}>
         <ActionsMenu
           name={item.patientName}
@@ -364,157 +354,110 @@ function QueueListRow({
   );
 }
 
-function estimateForStatus(status: QueueStatus, positionAmongQueued: number): ProcessingEstimate {
-  if (status === "in_progress") return "active";
-  if (status === "paused") return "on_hold";
-  if (status === "failed") return "needs_retry";
-  if (status === "completed") return "done";
-  if (status === "cancelled") return "removed";
-  if (positionAmongQueued <= 1) return "next";
-  if (positionAmongQueued === 2) return "about_2m";
-  if (positionAmongQueued <= 4) return "about_5m";
-  return "about_10m";
-}
-
 export function CallQueueWorkspace() {
   const [now, setNow] = useState(() => Date.now());
-  const [items, setItems] = useState<QueueCallItem[]>(() => createDummyCallQueue().items);
-  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [detailsItem, setDetailsItem] = useState<QueueCallItem | null>(null);
   const [processingPage, setProcessingPage] = useState(0);
   const [processingPageSize, setProcessingPageSize] = useState(5);
-  const [waitingPage, setWaitingPage] = useState(0);
+  const [waitingTablePage, setWaitingTablePage] = useState(0);
   const [waitingPageSize, setWaitingPageSize] = useState(10);
+  const [startOutboundCall, { isLoading: startingCall }] = useStartOutboundCallMutation();
+
+  const processingQueryArgs = useMemo(
+    () => ({ page: processingPage + 1, pageSize: processingPageSize }),
+    [processingPage, processingPageSize],
+  );
+  const waitingQueryArgs = useMemo(
+    () => ({ page: waitingTablePage + 1, pageSize: waitingPageSize }),
+    [waitingTablePage, waitingPageSize],
+  );
+
+  const [pollWhileActive, setPollWhileActive] = useState(false);
+  const queueSubscriptionOptions = useMemo(
+    () => callQueueSubscriptionOptions(pollWhileActive),
+    [pollWhileActive],
+  );
+
+  const {
+    data: inProgressPage,
+    isLoading: processingLoading,
+    isError: processingIsError,
+    error: processingError,
+    refetch: refetchProcessing,
+  } = useGetCallQueueQuery(processingQueryArgs, queueSubscriptionOptions);
+
+  const {
+    data: queuedPage,
+    isLoading: waitingLoading,
+    isError: waitingIsError,
+    error: waitingError,
+    refetch: refetchWaiting,
+  } = useGetQueuedCallQueueQuery(waitingQueryArgs, queueSubscriptionOptions);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refreshQueue() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchProcessing(), refetchWaiting()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const processing = inProgressPage?.results ?? [];
+  const processingCount = inProgressPage?.count ?? 0;
+  const waiting = queuedPage?.results ?? [];
+  const waitingCount = queuedPage?.count ?? 0;
+  const failedCount = 0;
+  const queuedCount = waitingCount;
 
   useEffect(() => {
+    const active = processingCount > 0 || waitingCount > 0;
+    setPollWhileActive((current) => (current === active ? current : active));
+  }, [processingCount, waitingCount]);
+
+  useEffect(() => {
+    if (!detailsItem) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [detailsItem]);
 
-  const processing = useMemo(
-    () => items.filter((item) => item.status === "in_progress"),
-    [items],
-  );
-  const waiting = useMemo(
-    () =>
-      items.filter(
-        (item) =>
-          item.status === "queued" ||
-          item.status === "paused" ||
-          item.status === "failed",
-      ),
-    [items],
-  );
-  const failedCount = useMemo(
-    () => items.filter((item) => item.status === "failed").length,
-    [items],
-  );
-  const queuedCount = useMemo(
-    () => items.filter((item) => item.status === "queued" || item.status === "paused").length,
-    [items],
-  );
-
-  const detailsItem = detailsId ? items.find((item) => item.id === detailsId) ?? null : null;
-  const visibleWaiting = waiting.filter((item) => item.status !== "cancelled");
-
-  const pagedProcessing = useMemo(() => {
-    const start = processingPage * processingPageSize;
-    return processing.slice(start, start + processingPageSize);
-  }, [processing, processingPage, processingPageSize]);
-
-  const pagedWaiting = useMemo(() => {
-    const start = waitingPage * waitingPageSize;
-    return visibleWaiting.slice(start, start + waitingPageSize);
-  }, [visibleWaiting, waitingPage, waitingPageSize]);
+  const queueIsEmpty =
+    processingCount === 0 &&
+    waitingCount === 0 &&
+    !processingLoading &&
+    !waitingLoading &&
+    !processingIsError &&
+    !waitingIsError;
 
   useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(processing.length / processingPageSize) - 1);
+    const maxPage = Math.max(0, Math.ceil(processingCount / processingPageSize) - 1);
     if (processingPage > maxPage) setProcessingPage(maxPage);
-  }, [processing.length, processingPage, processingPageSize]);
+  }, [processingCount, processingPage, processingPageSize]);
 
   useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(visibleWaiting.length / waitingPageSize) - 1);
-    if (waitingPage > maxPage) setWaitingPage(maxPage);
-  }, [visibleWaiting.length, waitingPage, waitingPageSize]);
+    const maxPage = Math.max(0, Math.ceil(waitingCount / waitingPageSize) - 1);
+    if (waitingTablePage > maxPage) setWaitingTablePage(maxPage);
+  }, [waitingCount, waitingTablePage, waitingPageSize]);
 
   function onAction(id: string, action: QueueAction) {
     if (action === "details") {
-      setDetailsId(id);
+      setDetailsItem(processing.find((item) => item.id === id) ?? waiting.find((item) => item.id === id) ?? null);
       return;
     }
-
-    setItems((current) => {
-      const index = current.findIndex((item) => item.id === id);
-      if (index < 0) return current;
-      const item = current[index];
-      let next = [...current];
-
-      if (action === "start") {
-        next[index] = {
-          ...item,
-          status: "in_progress",
-          estimate: "active",
-          startedAt: new Date().toISOString(),
-        };
-      } else if (action === "pause") {
-        next[index] = { ...item, status: "paused", estimate: "on_hold" };
-      } else if (action === "cancel") {
-        next[index] = { ...item, status: "cancelled", estimate: "removed" };
-      } else if (action === "move_up" || action === "move_down") {
-        const movable = next
-          .map((row, rowIndex) => ({ row, rowIndex }))
-          .filter(({ row }) => row.status === "queued" || row.status === "paused" || row.status === "failed");
-        const movableIndex = movable.findIndex(({ row }) => row.id === id);
-        if (movableIndex < 0) return current;
-        const swapWith = action === "move_up" ? movableIndex - 1 : movableIndex + 1;
-        if (swapWith < 0 || swapWith >= movable.length) return current;
-        const a = movable[movableIndex].rowIndex;
-        const b = movable[swapWith].rowIndex;
-        const copy = [...next];
-        const tmpPos = copy[a].position;
-        copy[a] = { ...copy[a], position: copy[b].position };
-        copy[b] = { ...copy[b], position: tmpPos };
-        next = copy;
-      }
-
-      // Apply estimates after mutation via commit-like logic
-      const reindexed = reindexQueueItems(next);
-      const queuedOnly = reindexed.filter(
-        (row) => row.status === "queued" || row.status === "paused" || row.status === "failed",
-      );
-      return reindexed.map((row) => {
-        if (row.status === "in_progress") return { ...row, estimate: "active" as const };
-        if (row.status === "paused") return { ...row, estimate: "on_hold" as const };
-        if (row.status === "failed") return { ...row, estimate: "needs_retry" as const };
-        if (row.status === "completed") return { ...row, estimate: "done" as const };
-        if (row.status === "cancelled") return { ...row, estimate: "removed" as const };
-        const among = queuedOnly.findIndex((q) => q.id === row.id) + 1;
-        return { ...row, estimate: estimateForStatus(row.status, among) };
-      });
-    });
+    if (action === "start") {
+      void startOutboundCall({ id }).unwrap().catch(() => undefined);
+    }
   }
-
-  function clearQueue() {
-    setItems((current) =>
-      reindexQueueItems(
-        current.map((item) =>
-          item.status === "queued" || item.status === "paused" || item.status === "failed"
-            ? { ...item, status: "cancelled" as const, estimate: "removed" as const }
-            : item,
-        ),
-      ),
-    );
-  }
-
-  const clearableCount = items.filter(
-    (item) => item.status === "queued" || item.status === "paused" || item.status === "failed",
-  ).length;
 
   return (
     <Stack spacing={2} sx={{ minHeight: 0 }}>
       <Stack
-        direction={{ xs: "column", md: "row" }}
+        direction="row"
         spacing={1.5}
-        sx={{ alignItems: { md: "flex-start" }, justifyContent: "space-between" }}
+        sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography sx={{ fontSize: 22, fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>
@@ -525,39 +468,38 @@ export function CallQueueWorkspace() {
           </Typography>
           <QueueStatusLine
             queuedCount={queuedCount}
-            inProgressCount={processing.length}
+            inProgressCount={processingCount}
             failedCount={failedCount}
           />
         </Box>
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}>
-          <Box
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              px: 1.15,
-              py: 0.55,
-              borderRadius: "999px",
-              bgcolor: "#FEF3C7",
-              color: "#B45309",
-              fontSize: "var(--font-size-body)",
-              fontWeight: 650,
-            }}
-          >
-            Demo data
-          </Box>
-          <Button
-            variant="secondary"
-            startIcon={<Trash2 size={15} />}
-            disabled={clearableCount === 0}
-            onClick={clearQueue}
-            sx={{ px: 1.75 }}
-          >
-            Clear Queue
-          </Button>
-        </Stack>
+        <IconButton
+          aria-label="Refresh queue"
+          onClick={() => void refreshQueue()}
+          disabled={refreshing}
+          sx={{
+            flexShrink: 0,
+            mt: 0.25,
+            width: 36,
+            height: 36,
+            border: "1px solid #E5E9EF",
+            borderRadius: "10px",
+            color: "#1D5F9A",
+            bgcolor: "#FFFFFF",
+            "&:hover": { bgcolor: "#F3F8FD" },
+            "& svg": refreshing
+              ? { animation: "queue-refresh-spin 0.8s linear infinite" }
+              : undefined,
+            "@keyframes queue-refresh-spin": {
+              from: { transform: "rotate(0deg)" },
+              to: { transform: "rotate(360deg)" },
+            },
+          }}
+        >
+          <RefreshCw size={16} strokeWidth={2} />
+        </IconButton>
       </Stack>
 
-      {items.length === 0 ? (
+      {queueIsEmpty ? (
         <Box
           sx={{
             bgcolor: "#FFFFFF",
@@ -591,8 +533,7 @@ export function CallQueueWorkspace() {
         </Box>
       ) : (
         <Stack spacing={2}>
-          {processing.length > 0 ? (
-            <Box
+          <Box
               sx={{
                 bgcolor: "#FFFFFF",
                 border: "1px solid #C9DBF2",
@@ -627,33 +568,47 @@ export function CallQueueWorkspace() {
                   </Typography>
                 </Stack>
                 <Typography sx={{ fontSize: "var(--font-size-body)", color: "#5C6478" }}>
-                  {processing.length} active
+                  {processingLoading && !inProgressPage
+                    ? "Loading"
+                    : `${processingCount} active`}
                 </Typography>
               </Stack>
-              <QueueTableHeader />
-              {pagedProcessing.map((item) => (
-                <QueueListRow
-                  key={item.id}
-                  item={item}
-                  now={now}
-                  canMoveUp={false}
-                  canMoveDown={false}
-                  highlight
-                  onAction={onAction}
-                />
-              ))}
-              {processing.length > 0 ? (
-                <TablePager
-                  page={processingPage}
-                  pageSize={processingPageSize}
-                  rowCount={processing.length}
-                  pageSizeOptions={[5, 10]}
-                  onPageChange={setProcessingPage}
-                  onPageSizeChange={setProcessingPageSize}
-                />
-              ) : null}
+              {processingIsError ? (
+                <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#D14343", fontSize: "var(--font-size-body)" }}>
+                  {getApiErrorMessage(processingError, "Could not load calls that are currently processing.")}
+                </Typography>
+              ) : processingLoading && processing.length === 0 ? (
+                <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
+                  Loading active calls…
+                </Typography>
+              ) : processing.length === 0 ? (
+                <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
+                  No calls are on the line right now.
+                </Typography>
+              ) : (
+                <>
+                  <QueueTableHeader />
+                  {processing.map((item) => (
+                    <QueueListRow
+                      key={item.id}
+                      item={item}
+                      canMoveUp={false}
+                      canMoveDown={false}
+                      highlight
+                      onAction={onAction}
+                    />
+                  ))}
+                  <TablePager
+                    page={processingPage}
+                    pageSize={processingPageSize}
+                    rowCount={processingCount}
+                    pageSizeOptions={[5, 10]}
+                    onPageChange={setProcessingPage}
+                    onPageSizeChange={setProcessingPageSize}
+                  />
+                </>
+              )}
             </Box>
-          ) : null}
 
           <Box
             sx={{
@@ -679,13 +634,23 @@ export function CallQueueWorkspace() {
                 Waiting & needs attention
               </Typography>
               <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
-                {visibleWaiting.length === 0
-                  ? "None waiting"
-                  : `${visibleWaiting.length} call${visibleWaiting.length === 1 ? "" : "s"}`}
+                {waitingLoading && !queuedPage
+                  ? "Loading"
+                  : waitingCount === 0
+                    ? "None waiting"
+                    : `${waitingCount} call${waitingCount === 1 ? "" : "s"}`}
               </Typography>
             </Stack>
 
-            {visibleWaiting.length === 0 ? (
+            {waitingIsError ? (
+              <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#D14343", fontSize: "var(--font-size-body)" }}>
+                {getApiErrorMessage(waitingError, "Could not load calls waiting in the queue.")}
+              </Typography>
+            ) : waitingLoading && waiting.length === 0 ? (
+              <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
+                Loading waiting calls…
+              </Typography>
+            ) : waitingCount === 0 ? (
               <Typography
                 sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}
               >
@@ -696,29 +661,23 @@ export function CallQueueWorkspace() {
             ) : (
               <>
                 <QueueTableHeader />
-                {pagedWaiting.map((item, index) => {
-                  const absoluteIndex = waitingPage * waitingPageSize + index;
-                  return (
-                    <QueueListRow
-                      key={item.id}
-                      item={item}
-                      now={now}
-                      canMoveUp={absoluteIndex > 0}
-                      canMoveDown={absoluteIndex < visibleWaiting.length - 1}
-                      onAction={onAction}
-                    />
-                  );
-                })}
-                {visibleWaiting.length > 0 ? (
-                  <TablePager
-                    page={waitingPage}
-                    pageSize={waitingPageSize}
-                    rowCount={visibleWaiting.length}
-                    pageSizeOptions={[5, 10, 20]}
-                    onPageChange={setWaitingPage}
-                    onPageSizeChange={setWaitingPageSize}
+                {waiting.map((item) => (
+                  <QueueListRow
+                    key={item.id}
+                    item={item}
+                    canMoveUp={false}
+                    canMoveDown={false}
+                    onAction={onAction}
                   />
-                ) : null}
+                ))}
+                <TablePager
+                  page={waitingTablePage}
+                  pageSize={waitingPageSize}
+                  rowCount={waitingCount}
+                  pageSizeOptions={[5, 10, 20]}
+                  onPageChange={setWaitingTablePage}
+                  onPageSizeChange={setWaitingPageSize}
+                />
               </>
             )}
           </Box>
@@ -727,7 +686,7 @@ export function CallQueueWorkspace() {
 
       <Dialog
         open={Boolean(detailsItem)}
-        onClose={() => setDetailsId(null)}
+        onClose={() => setDetailsItem(null)}
         fullWidth
         maxWidth="sm"
         slotProps={{
@@ -744,7 +703,7 @@ export function CallQueueWorkspace() {
           Call details
           <IconButton
             aria-label="Close"
-            onClick={() => setDetailsId(null)}
+            onClick={() => setDetailsItem(null)}
             sx={{ position: "absolute", right: 12, top: 12 }}
           >
             <X size={18} />
@@ -771,16 +730,17 @@ export function CallQueueWorkspace() {
           ) : null}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button variant="secondary" onClick={() => setDetailsId(null)}>
+          <Button variant="secondary" onClick={() => setDetailsItem(null)}>
             Close
           </Button>
           {detailsItem && detailsItem.status !== "in_progress" && detailsItem.status !== "cancelled" ? (
             <Button
               variant="soft"
               startIcon={<CirclePlay size={15} />}
+              disabled={startingCall}
               onClick={() => {
                 onAction(detailsItem.id, "start");
-                setDetailsId(null);
+                setDetailsItem(null);
               }}
             >
               Start Call

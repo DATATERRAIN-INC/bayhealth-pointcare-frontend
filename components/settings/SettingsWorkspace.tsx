@@ -26,6 +26,7 @@ import {
   sanitizePhoneDigits,
   validatePhoneNumber,
 } from "@/lib/phone";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { elevation } from "@/lib/theme/tokens";
 
 const timezones = [
@@ -60,6 +61,7 @@ interface CallingSettings {
   timezone: string;
   maxCallsPerRun: string;
   callTriggerCount: string;
+  reminderTimeframeHours: string;
   recording: boolean;
   textSmsEnabled: boolean;
   liveAgents: LiveAgentDraft[];
@@ -97,6 +99,7 @@ const defaultSettings: CallingSettings = {
   timezone: timezones[0].value,
   maxCallsPerRun: "5",
   callTriggerCount: "3",
+  reminderTimeframeHours: "24",
   recording: true,
   textSmsEnabled: false,
   liveAgents: [createLiveAgentDraft(undefined, 0)],
@@ -265,6 +268,7 @@ function toDraft(payload: SettingsPayload): CallingSettings {
     timezone: normalizeTimezone(payload.timezone),
     maxCallsPerRun: String(payload.max_calls_per_run),
     callTriggerCount: String(payload.call_trigger_count),
+    reminderTimeframeHours: String(payload.reminder_timeframe_hours),
     recording: payload.recording_enabled,
     textSmsEnabled: payload.text_sms_enabled,
     liveAgents,
@@ -284,6 +288,10 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
   const triggerCount = Number(settings.callTriggerCount);
   if (!Number.isInteger(triggerCount) || triggerCount < 1) {
     return { error: "Enter how many times a call should be triggered (1 or more)." };
+  }
+  const reminderHours = Number(settings.reminderTimeframeHours);
+  if (!Number.isInteger(reminderHours) || reminderHours < 1 || reminderHours > 720) {
+    return { error: "Enter reminder hours between 1 and 720 (30 days)." };
   }
   const timezone = settings.timezone.trim();
   if (!timezone) {
@@ -331,6 +339,7 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
       timezone,
       max_calls_per_run: maxCalls,
       call_trigger_count: triggerCount,
+      reminder_timeframe_hours: reminderHours,
       live_agent_numbers,
     },
   };
@@ -361,30 +370,13 @@ function windowSummary(settings: CallingSettings): string {
   if (diff <= 0) diff += 24 * 60;
   const hours = Math.round((diff / 60) * 10) / 10;
   const hourLabel = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+  const reminderHours = settings.reminderTimeframeHours || "—";
   const status = settings.callsEnabled
-    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}.`
+    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}. Missed calls are reminded after ${reminderHours} hour${reminderHours === "1" ? "" : "s"}.`
     : "Outreach calls are turned off.";
   return `Calls run ${settings.start.replace(/^0/, "")} – ${settings.end.replace(/^0/, "")} ${zone} (${hourLabel} hours). ${status} Calls outside this window wait until it opens.`;
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  if (typeof error === "object" && error && "data" in error) {
-    const data = (error as { data?: unknown }).data;
-    if (typeof data === "string" && data.trim()) return data;
-    if (data && typeof data === "object") {
-      const record = data as { detail?: unknown; message?: unknown };
-      if (typeof record.detail === "string" && record.detail.trim()) return record.detail;
-      if (typeof record.message === "string" && record.message.trim()) return record.message;
-    }
-  }
-  if (typeof error === "object" && error && "status" in error) {
-    const status = (error as { status?: unknown }).status;
-    if (status === "FETCH_ERROR" || status === "TIMEOUT_ERROR") {
-      return "Could not reach the settings API.";
-    }
-  }
-  return fallback;
-}
 
 function SettingsSections() {
   return (
@@ -635,7 +627,7 @@ export function SettingsWorkspace() {
       setSuccessOpen(true);
     } catch (saveError) {
       setNoticeError(true);
-      setNotice(errorMessage(saveError, "Could not save settings. Please try again."));
+      setNotice(getApiErrorMessage(saveError, "Could not save settings. Please try again."));
     }
   }
 
@@ -674,7 +666,7 @@ export function SettingsWorkspace() {
 
       {!showSkeleton && isError && !notice ? (
         <Typography sx={{ fontSize: "var(--font-size-body)", color: "#D14343", lineHeight: 1.45 }}>
-          {errorMessage(error, "Could not load settings. You can still update them and save.")}
+          {getApiErrorMessage(error, "Could not load settings. You can still update them and save.")}
         </Typography>
       ) : null}
 
@@ -776,6 +768,18 @@ export function SettingsWorkspace() {
                   onChange={(event) => updateDraft({ callTriggerCount: event.target.value })}
                   sx={fieldSx}
                   slotProps={{ htmlInput: { min: 1, step: 1, inputMode: "numeric" } }}
+                />
+              </Box>
+              <Box>
+                <Typography sx={labelSx}>Reminder hours</Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  value={draft.reminderTimeframeHours}
+                  onChange={(event) => updateDraft({ reminderTimeframeHours: event.target.value })}
+                  sx={fieldSx}
+                  slotProps={{ htmlInput: { min: 1, max: 720, step: 1, inputMode: "numeric" } }}
                 />
               </Box>
             </Box>

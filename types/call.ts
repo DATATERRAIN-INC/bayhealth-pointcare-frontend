@@ -2,6 +2,7 @@ export interface CallApiRecord {
   id: number | string;
   patient?: number | string;
   patient_name?: string;
+  decline_reason?: string;
   retell_call_id?: string;
   flow?: string;
   /** Outreach channel: call | text | sms */

@@ -1,3 +1,5 @@
+import type { CallStatus } from "@/components/shared/CallStatusChip";
+
 export type PatientSource = "Manual" | "Excel";
 
 export interface PatientRecord {
@@ -14,6 +16,7 @@ export interface PatientRecord {
   /** Reason for call / service name */
   serviceName: string;
   blocked: boolean;
+  callStatus: CallStatus | null;
 }
 
 export const DOCTORS = ["Dr. Alan Brooks", "Dr. Priya Shah"] as const;
