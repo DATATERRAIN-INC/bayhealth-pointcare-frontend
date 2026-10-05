@@ -2,8 +2,7 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
-import type { CallQueueSnapshot, QueueCallItem, QueueStatus } from "@/types/queue";
-import { reindexQueueItems } from "@/data/dummyCallQueue";
+import type { ProcessingEstimate, QueueCallItem, QueueStatus } from "@/types/queue";
 
 const CALL_TIME_ZONE = "America/New_York";
 
@@ -87,38 +86,36 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${mins}m ${remainder}s`;
 }
 
-function mapQueueStatus(value: string | undefined): QueueStatus | null {
-  const status = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-  if (status === "queued" || status === "pending" || status === "waiting" || status === "scheduled" || status === "ringing" || status === "dialing") {
-    return "queued";
-  }
-  if (status === "paused" || status === "on_hold") return "paused";
-  if (status === "failed" || status === "error" || status === "no_answer") return "failed";
-  if (status === "completed" || status === "complete" || status === "ended") return "completed";
-  if (status === "cancelled" || status === "canceled") return "cancelled";
-  if (status === "in_progress" || status === "ongoing" || status === "active" || status === "connected") {
-    return "in_progress";
-  }
-  return null;
-}
-
-function queueTimestamp(record: CallApiRecord): number {
-  const iso = record.started_at || record.created_at || record.updated_at || "";
-  const time = new Date(iso).getTime();
-  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
-}
-
 function formatPhone(record: CallApiRecord): string {
   const raw = String(record.to_number || record.from_number || "").trim();
   return raw || "—";
 }
 
+function mapQueueStatusFromApi(value: string | undefined): QueueStatus {
+  const status = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (status === "in_progress" || status === "ongoing" || status === "ringing") return "in_progress";
+  if (status === "queued") return "queued";
+  if (status === "paused") return "paused";
+  if (status === "failed" || status === "not_attended") return "failed";
+  if (status === "completed" || status === "complete" || status === "ended") return "completed";
+  if (status === "cancelled" || status === "canceled") return "cancelled";
+  return "queued";
+}
+
+function estimateForQueuedPosition(positionAmongQueued: number): ProcessingEstimate {
+  if (positionAmongQueued <= 1) return "next";
+  if (positionAmongQueued === 2) return "about_2m";
+  if (positionAmongQueued <= 4) return "about_5m";
+  return "about_10m";
+}
+
 function mapQueueItem(record: CallApiRecord, position: number, status: QueueStatus): QueueCallItem {
+  const reason = record.decline_reason?.trim() || "";
   return {
-    id: String(record.id),
+    id: String(record.patient ?? record.id ?? ""),
     position,
     patientName: record.patient_name?.trim() || "Unknown patient",
     phone: formatPhone(record),
@@ -135,31 +132,61 @@ function mapQueueItem(record: CallApiRecord, position: number, status: QueueStat
               ? "done"
               : status === "cancelled"
                 ? "removed"
-                : "about_5m",
+                : estimateForQueuedPosition(position),
     queuedAt: record.created_at ?? record.started_at ?? null,
     startedAt: record.started_at ?? null,
+    reason: reason || undefined,
+  };
+}
+
+export interface InProgressCallsPage {
+  count: number;
+  totalPages: number;
+  page: number;
+  pageSize: number;
+  results: QueueCallItem[];
+}
+
+/** Shared RTK Query subscription settings for queue screens (stable reference). */
+export const callQueueQueryBaseOptions = {
+  refetchOnMountOrArgChange: 30,
+  refetchOnFocus: false,
+  refetchOnReconnect: true,
+  skipPollingIfUnfocused: true,
+} as const;
+
+const QUEUE_POLL_MS = 30_000;
+const QUEUE_IDLE_POLL_MS = 0;
+
+export function callQueueSubscriptionOptions(hasQueueActivity: boolean) {
+  return {
+    ...callQueueQueryBaseOptions,
+    pollingInterval: hasQueueActivity ? QUEUE_POLL_MS : QUEUE_IDLE_POLL_MS,
+  };
+}
+
+function mapQueueCallsPage(response: CallsListResponse | CallApiRecord[]): InProgressCallsPage {
+  const records = asCallRecords(response);
+  const page = Array.isArray(response) ? 1 : response.page ?? 1;
+  const pageSize = Array.isArray(response) ? Math.max(records.length, 1) : response.page_size ?? Math.max(records.length, 1);
+  const start = Math.max(0, page - 1) * pageSize;
+  const results = records.map((record, index) => {
+    const status = mapQueueStatusFromApi(record.status);
+    return mapQueueItem(record, start + index + 1, status);
+  });
+  const count = Array.isArray(response) ? records.length : response.count ?? results.length;
+  return {
+    count,
+    totalPages: Array.isArray(response) ? 1 : response.total_pages ?? Math.max(1, Math.ceil(count / pageSize)),
+    page,
+    pageSize,
+    results,
   };
 }
 
 function asCallRecords(response: CallsListResponse | CallApiRecord[]): CallApiRecord[] {
   if (Array.isArray(response)) return response;
   return response.results ?? [];
-}
-
-function buildQueueSnapshot(response: CallsListResponse | CallApiRecord[]): CallQueueSnapshot {
-  const mapped = asCallRecords(response)
-    .map((record) => {
-      const status = mapQueueStatus(record.status);
-      return status ? { record, status } : null;
-    })
-    .filter((item): item is { record: CallApiRecord; status: QueueStatus } => Boolean(item))
-    .sort((a, b) => queueTimestamp(a.record) - queueTimestamp(b.record))
-    .map((item, index) => mapQueueItem(item.record, index + 1, item.status));
-
-  return {
-    items: reindexQueueItems(mapped),
-    updatedAt: new Date().toISOString(),
-  };
 }
 
 export function mapApiCall(record: CallApiRecord): OutreachCall {
@@ -233,10 +260,31 @@ export const callsApi = createApi({
             ]
           : [{ type: "Call", id: "LIST" }],
     }),
-    getCallQueue: builder.query<CallQueueSnapshot, void>({
-      query: () => "/calls/?page=1&page_size=50&status=in_progress",
-      transformResponse: (response: CallsListResponse | CallApiRecord[]) => buildQueueSnapshot(response),
+    getCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number }>({
+      query: ({ page, pageSize }) => {
+        const params = new URLSearchParams({
+          page: String(page),
+          page_size: String(pageSize),
+          status: "in_progress",
+        });
+        return `/calls/?${params.toString()}`;
+      },
+      transformResponse: (response: CallsListResponse | CallApiRecord[]) => mapQueueCallsPage(response),
       providesTags: [{ type: "Call", id: "QUEUE" }],
+      keepUnusedDataFor: 120,
+    }),
+    getQueuedCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number }>({
+      query: ({ page, pageSize }) => {
+        const params = new URLSearchParams({
+          page: String(page),
+          page_size: String(pageSize),
+          status: "queued",
+        });
+        return `/calls/?${params.toString()}`;
+      },
+      transformResponse: (response: CallsListResponse | CallApiRecord[]) => mapQueueCallsPage(response),
+      providesTags: [{ type: "Call", id: "QUEUE_WAITING" }],
+      keepUnusedDataFor: 120,
     }),
     getCallTranscript: builder.query<TranscriptLine[], string>({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
@@ -254,6 +302,7 @@ export const callsApi = createApi({
       invalidatesTags: [
         { type: "Call", id: "LIST" },
         { type: "Call", id: "QUEUE" },
+        { type: "Call", id: "QUEUE_WAITING" },
       ],
     }),
   }),
@@ -262,6 +311,7 @@ export const callsApi = createApi({
 export const {
   useGetCallsQuery,
   useGetCallQueueQuery,
+  useGetQueuedCallQueueQuery,
   useGetCallTranscriptQuery,
   useStartOutboundCallMutation,
 } = callsApi;

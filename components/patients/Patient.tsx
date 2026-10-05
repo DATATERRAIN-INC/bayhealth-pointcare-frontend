@@ -20,6 +20,7 @@ import {
   CallInitiatingDialog,
   ViewPatientDialog,
 } from "@/components/patients/ViewPatientDialog";
+import { CallStatusChip } from "@/components/shared/CallStatusChip";
 import { RecordActions, type ActionsMenuItem } from "@/components/shared/RecordActions";
 import { Button } from "@/components/ui/Button";
 import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
@@ -32,6 +33,7 @@ import {
   useUploadPatientsMutation,
 } from "@/lib/api/patientsApi";
 import { formatPatientDob, formatPatientPhone, type PatientRecord } from "@/data/gapPatients";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { elevation } from "@/lib/theme/tokens";
 
 const PATIENTS_PER_PAGE = 10;
@@ -50,22 +52,7 @@ function uploadMessage(data: unknown, fileName: string): string {
 }
 
 function uploadErrorMessage(error: unknown): string {
-  if (typeof error === "object" && error && "data" in error) {
-    const data = (error as { data?: unknown }).data;
-    if (typeof data === "string" && data.trim()) return data;
-    if (data && typeof data === "object") {
-      const record = data as { detail?: unknown; message?: unknown };
-      if (typeof record.detail === "string" && record.detail.trim()) return record.detail;
-      if (typeof record.message === "string" && record.message.trim()) return record.message;
-    }
-  }
-  if (typeof error === "object" && error && "status" in error) {
-    const status = (error as { status?: unknown }).status;
-    if (status === "FETCH_ERROR" || status === "TIMEOUT_ERROR") {
-      return "Could not reach the upload service.";
-    }
-  }
-  return "Could not import this file. Please try again.";
+  return getApiErrorMessage(error, "Could not import this file. Please try again.");
 }
 
 function BlockedChip() {
@@ -273,6 +260,14 @@ function buildPatientColumns(onBlocked: (message: string) => void): GridColDef<P
       headerName: "Doctor",
       flex: 1,
       minWidth: 150,
+    },
+    {
+      field: "callStatus",
+      headerName: "Status",
+      flex: 0.9,
+      minWidth: 140,
+      sortable: false,
+      renderCell: (params) => <CallStatusChip status={params.row.callStatus} />,
     },
     {
       field: "source",
@@ -534,22 +529,24 @@ export function Patient() {
               <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#5C6478", lineHeight: 1.4 }}>
                 {patient.address}
               </Typography>
-              <Box
-                component="span"
-                sx={{
-                  display: "inline-flex",
-                  mt: 0.7,
-                  px: 0.9,
-                  py: 0.2,
-                  borderRadius: "999px",
-                  fontSize: "var(--font-size-body)",
-                  fontWeight: 600,
-                  color: patient.source === "Excel" ? "#1D5F9A" : "#526071",
-                  bgcolor: patient.source === "Excel" ? "#EAF3FB" : "#F0F2F5",
-                }}
-              >
-                {patient.source}
-              </Box>
+              <Stack direction="row" spacing={0.75} sx={{ mt: 0.7, alignItems: "center", flexWrap: "wrap" }}>
+                <CallStatusChip status={patient.callStatus} />
+                <Box
+                  component="span"
+                  sx={{
+                    display: "inline-flex",
+                    px: 0.9,
+                    py: 0.2,
+                    borderRadius: "999px",
+                    fontSize: "var(--font-size-body)",
+                    fontWeight: 600,
+                    color: patient.source === "Excel" ? "#1D5F9A" : "#526071",
+                    bgcolor: patient.source === "Excel" ? "#EAF3FB" : "#F0F2F5",
+                  }}
+                >
+                  {patient.source}
+                </Box>
+              </Stack>
               <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
                 {formatPatientDob(patient.dateOfBirth)} · {patient.doctor}
               </Typography>

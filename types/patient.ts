@@ -24,6 +24,7 @@ export interface PatientApiRecord {
   reason_for_call?: string;
   source?: string;
   is_blocked?: boolean;
+  call_status?: string;
   blocked?: boolean;
   is_active?: boolean;
   upload_file_key?: string;

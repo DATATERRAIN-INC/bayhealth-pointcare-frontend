@@ -18,6 +18,8 @@ export interface SettingsPayload {
   max_calls_per_run: number;
   /** How many times a call should be triggered for a patient. */
   call_trigger_count: number;
+  /** Hours to wait after a missed call before the next reminder call. */
+  reminder_timeframe_hours: number;
   live_agent_numbers: LiveAgentNumber[];
 }
 
@@ -136,6 +138,7 @@ export function mapSettingsPayload(response: unknown): SettingsPayload {
     timezone: String(source.timezone ?? "America/New_York"),
     max_calls_per_run: asCount(source.max_calls_per_run, 5),
     call_trigger_count: asCount(triggerCount, 3),
+    reminder_timeframe_hours: asCount(source.reminder_timeframe_hours, 24),
     live_agent_numbers: mapLiveAgentNumbers(source),
   };
 }

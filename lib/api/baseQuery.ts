@@ -7,6 +7,7 @@ import {
 import { getAuthToken, getRefreshToken, isAccessTokenExpired, logout, updateAccessToken } from "@/lib/auth";
 import { buildLoginUrl, isSsoSession } from "@/lib/authUtils";
 import { getBaseUrl } from "@/lib/api/baseUrl";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { showPermissionError } from "@/lib/permissionToast";
 
 const rawBaseQuery = fetchBaseQuery({
@@ -107,12 +108,7 @@ export const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, Fetch
   }
 
   if (result.error?.status === 403) {
-    const data = result.error.data;
-    const message =
-      data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
-        ? data.detail
-        : "You do not have permission to do that.";
-    showPermissionError(message);
+    showPermissionError(getApiErrorMessage(result.error, "You do not have permission to do that."));
     return result;
   }
 
