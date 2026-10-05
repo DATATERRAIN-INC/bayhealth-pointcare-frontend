@@ -1,25 +1,20 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import {
   Box,
   Dialog,
   IconButton,
   keyframes,
-  ListItemIcon,
-  Menu,
-  MenuItem,
   Stack,
   Typography,
 } from "@mui/material";
-import { Ban, Check, Eye, Pencil, Phone, ShieldCheck, X } from "lucide-react";
+import { Check, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatPatientDob, type PatientRecord } from "@/data/gapPatients";
-import { useStartOutboundCallMutation } from "@/lib/api/callsApi";
-import { useSetPatientBlockedStatusMutation } from "@/lib/api/patientsApi";
+import { elevation } from "@/lib/theme/tokens";
 
-type CallUiPhase = "idle" | "calling" | "success";
+type CallUiPhase = "calling" | "success";
 
 const pulseRing = keyframes`
   0% { transform: scale(0.85); opacity: 0.55; }
@@ -32,7 +27,7 @@ const softBounce = keyframes`
   50% { transform: translateY(-3px); }
 `;
 
-function actionErrorMessage(error: unknown, fallback: string): string {
+export function actionErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === "object" && error !== null && "data" in error) {
     const data = (error as { data?: { detail?: string; message?: string; error?: string } }).data;
     if (data?.detail) return data.detail;
@@ -68,185 +63,14 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PatientActions({
-  patient,
-  onBlocked,
-}: {
-  patient: PatientRecord;
-  onBlocked: (message: string) => void;
-}) {
-  const router = useRouter();
-  const [setBlocked, { isLoading: isBlocking }] = useSetPatientBlockedStatusMutation();
-  const [startOutboundCall] = useStartOutboundCallMutation();
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [actionError, setActionError] = useState("");
-  const [callPhase, setCallPhase] = useState<CallUiPhase>("idle");
-
-  function openMenu(event: MouseEvent<HTMLElement>) {
-    event.stopPropagation();
-    setAnchor(event.currentTarget);
-  }
-
-  function closeMenu() {
-    setAnchor(null);
-  }
-
-  async function toggleBlocked() {
-    const blocking = !patient.blocked;
-    closeMenu();
-    setActionError("");
-    try {
-      await setBlocked({ id: patient.id, is_blocked: blocking }).unwrap();
-      onBlocked(blocking ? "Patient blocked successfully." : "Patient unblocked successfully.");
-    } catch (error) {
-      setActionError(actionErrorMessage(error, "Could not update this patient. Please try again."));
-    }
-  }
-
-  async function runOutboundCall() {
-    setActionError("");
-    setCallPhase("calling");
-    const startedAt = Date.now();
-    const minLoaderMs = 1200;
-    try {
-      await startOutboundCall({ id: patient.id }).unwrap();
-      const wait = Math.max(0, minLoaderMs - (Date.now() - startedAt));
-      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
-      setCallPhase("success");
-    } catch (error) {
-      const wait = Math.max(0, 700 - (Date.now() - startedAt));
-      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
-      setCallPhase("idle");
-      setActionError(actionErrorMessage(error, "Could not start the outbound call. Please try again."));
-    }
-  }
-
-  function finishCallSuccess() {
-    setCallPhase("idle");
-  }
-
-  function requestCall() {
-    // Close the menu first; opening a Dialog in the same tick as Menu close
-    // gets dismissed by MUI's modal stack.
-    closeMenu();
-    window.setTimeout(() => {
-      void runOutboundCall();
-    }, 120);
-  }
-
-  return (
-    <>
-      <IconButton
-        aria-label={`Actions for ${patient.name}`}
-        aria-haspopup="menu"
-        aria-expanded={anchor ? "true" : undefined}
-        onClick={openMenu}
-        sx={{
-          width: 36,
-          height: 36,
-          bgcolor: "#F2F4F7",
-          "&:hover": { bgcolor: "#E7EBF0" },
-        }}
-      >
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }} aria-hidden>
-          {[0, 1, 2].map((dot) => (
-            <Box
-              key={dot}
-              sx={{ width: 4, height: 4, borderRadius: "50%", bgcolor: "#E11D48" }}
-            />
-          ))}
-        </Box>
-      </IconButton>
-
-      <Menu
-        anchorEl={anchor}
-        open={Boolean(anchor)}
-        onClose={closeMenu}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { sx: { width: 180, mt: 0.5, borderRadius: "10px" } } }}
-      >
-        <MenuItem
-          onClick={() => {
-            closeMenu();
-            window.setTimeout(() => setViewOpen(true), 120);
-          }}
-          sx={{ fontSize: "var(--font-size-body)" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <Eye size={16} />
-          </ListItemIcon>
-          View
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            closeMenu();
-            router.push(`/patients/add?id=${encodeURIComponent(patient.id)}&edit=true`);
-          }}
-          sx={{ fontSize: "var(--font-size-body)" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <Pencil size={16} />
-          </ListItemIcon>
-          Edit
-        </MenuItem>
-        <MenuItem
-          disabled={callPhase !== "idle" || patient.blocked}
-          onClick={requestCall}
-          sx={{ fontSize: "var(--font-size-body)" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <Phone size={16} />
-          </ListItemIcon>
-          Call
-        </MenuItem>
-        <MenuItem
-          disabled={isBlocking}
-          onClick={() => void toggleBlocked()}
-          sx={{ fontSize: "var(--font-size-body)", color: patient.blocked ? "primary.main" : "#D14343" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
-            {patient.blocked ? <ShieldCheck size={16} /> : <Ban size={16} />}
-          </ListItemIcon>
-          {patient.blocked ? "Unblock" : "Block"}
-        </MenuItem>
-      </Menu>
-
-      <ViewPatientDialog patient={patient} open={viewOpen} onClose={() => setViewOpen(false)} />
-      <CallInitiatingDialog
-        open={callPhase !== "idle"}
-        phase={callPhase === "idle" ? "calling" : callPhase}
-        patient={patient}
-        onSuccessDone={finishCallSuccess}
-      />
-      <Dialog
-        open={Boolean(actionError)}
-        onClose={() => setActionError("")}
-        maxWidth={false}
-        slotProps={{
-          paper: { sx: { width: 420, maxWidth: "calc(100vw - 32px)", borderRadius: "12px", p: 3 } },
-        }}
-      >
-        <Typography sx={{ fontSize: "var(--font-size-body)", color: "#D92D20" }}>{actionError}</Typography>
-        <Stack direction="row" sx={{ justifyContent: "flex-end", mt: 2 }}>
-          <Button onClick={() => setActionError("")} sx={{ px: 2 }}>
-            Close
-          </Button>
-        </Stack>
-      </Dialog>
-    </>
-  );
-}
-
-function CallInitiatingDialog({
+export function CallInitiatingDialog({
   open,
   phase,
   patient,
   onSuccessDone,
 }: {
   open: boolean;
-  phase: "calling" | "success";
+  phase: CallUiPhase;
   patient: PatientRecord;
   onSuccessDone: () => void;
 }) {
@@ -274,14 +98,14 @@ function CallInitiatingDialog({
           sx: { zIndex: (theme) => theme.zIndex.modal + 2 },
         },
         backdrop: {
-          sx: { bgcolor: "rgba(15, 23, 42, 0.48)" },
+          sx: { bgcolor: elevation.backdrop },
         },
         paper: {
           sx: {
             width: 420,
             maxWidth: "calc(100vw - 40px)",
             borderRadius: "14px",
-            boxShadow: "0 16px 48px rgb(15 23 42 / 0.2)",
+            boxShadow: elevation.floating,
             overflow: "hidden",
             m: 2,
           },
@@ -412,7 +236,7 @@ function CallInitiatingDialog({
   );
 }
 
-function ViewPatientDialog({
+export function ViewPatientDialog({
   patient,
   open,
   onClose,
@@ -429,13 +253,13 @@ function ViewPatientDialog({
       onClose={onClose}
       maxWidth={false}
       slotProps={{
-        backdrop: { sx: { bgcolor: "rgba(15, 23, 42, 0.45)" } },
+        backdrop: { sx: { bgcolor: elevation.backdrop } },
         paper: {
           sx: {
             width: 520,
             maxWidth: "calc(100vw - 32px)",
             borderRadius: "16px",
-            boxShadow: "0 24px 48px rgba(15, 23, 42, 0.18)",
+            boxShadow: elevation.floating,
             overflow: "hidden",
           },
         },

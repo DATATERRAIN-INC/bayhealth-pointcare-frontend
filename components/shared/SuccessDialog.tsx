@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { Box, Dialog, Typography } from "@mui/material";
 import { Check } from "lucide-react";
 
+import { elevation } from "@/lib/theme/tokens";
+
 interface SuccessDialogProps {
   open: boolean;
   title?: string;
@@ -37,14 +39,14 @@ export function SuccessDialog({
       maxWidth={false}
       slotProps={{
         backdrop: {
-          sx: { bgcolor: "rgba(0, 0, 0, 0.45)" },
+          sx: { bgcolor: elevation.backdrop },
         },
         paper: {
           sx: {
             width: 440,
             maxWidth: "calc(100vw - 40px)",
-            borderRadius: "10px",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.18)",
+            borderRadius: "12px",
+            boxShadow: elevation.floating,
             overflow: "hidden",
             m: 2,
           },

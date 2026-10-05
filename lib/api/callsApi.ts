@@ -2,6 +2,8 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
+import type { CallQueueSnapshot, QueueCallItem, QueueStatus } from "@/types/queue";
+import { reindexQueueItems } from "@/data/dummyCallQueue";
 
 const CALL_TIME_ZONE = "America/New_York";
 
@@ -85,6 +87,81 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${mins}m ${remainder}s`;
 }
 
+function mapQueueStatus(value: string | undefined): QueueStatus | null {
+  const status = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (status === "queued" || status === "pending" || status === "waiting" || status === "scheduled" || status === "ringing" || status === "dialing") {
+    return "queued";
+  }
+  if (status === "paused" || status === "on_hold") return "paused";
+  if (status === "failed" || status === "error" || status === "no_answer") return "failed";
+  if (status === "completed" || status === "complete" || status === "ended") return "completed";
+  if (status === "cancelled" || status === "canceled") return "cancelled";
+  if (status === "in_progress" || status === "ongoing" || status === "active" || status === "connected") {
+    return "in_progress";
+  }
+  return null;
+}
+
+function queueTimestamp(record: CallApiRecord): number {
+  const iso = record.started_at || record.created_at || record.updated_at || "";
+  const time = new Date(iso).getTime();
+  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
+}
+
+function formatPhone(record: CallApiRecord): string {
+  const raw = String(record.to_number || record.from_number || "").trim();
+  return raw || "—";
+}
+
+function mapQueueItem(record: CallApiRecord, position: number, status: QueueStatus): QueueCallItem {
+  return {
+    id: String(record.id),
+    position,
+    patientName: record.patient_name?.trim() || "Unknown patient",
+    phone: formatPhone(record),
+    channel: mapChannel(record),
+    status,
+    estimate:
+      status === "in_progress"
+        ? "active"
+        : status === "paused"
+          ? "on_hold"
+          : status === "failed"
+            ? "needs_retry"
+            : status === "completed"
+              ? "done"
+              : status === "cancelled"
+                ? "removed"
+                : "about_5m",
+    queuedAt: record.created_at ?? record.started_at ?? null,
+    startedAt: record.started_at ?? null,
+  };
+}
+
+function asCallRecords(response: CallsListResponse | CallApiRecord[]): CallApiRecord[] {
+  if (Array.isArray(response)) return response;
+  return response.results ?? [];
+}
+
+function buildQueueSnapshot(response: CallsListResponse | CallApiRecord[]): CallQueueSnapshot {
+  const mapped = asCallRecords(response)
+    .map((record) => {
+      const status = mapQueueStatus(record.status);
+      return status ? { record, status } : null;
+    })
+    .filter((item): item is { record: CallApiRecord; status: QueueStatus } => Boolean(item))
+    .sort((a, b) => queueTimestamp(a.record) - queueTimestamp(b.record))
+    .map((item, index) => mapQueueItem(item.record, index + 1, item.status));
+
+  return {
+    items: reindexQueueItems(mapped),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function mapApiCall(record: CallApiRecord): OutreachCall {
   const id = String(record.id);
   const channel = mapChannel(record);
@@ -156,6 +233,11 @@ export const callsApi = createApi({
             ]
           : [{ type: "Call", id: "LIST" }],
     }),
+    getCallQueue: builder.query<CallQueueSnapshot, void>({
+      query: () => "/calls/?page=1&page_size=50&status=in_progress",
+      transformResponse: (response: CallsListResponse | CallApiRecord[]) => buildQueueSnapshot(response),
+      providesTags: [{ type: "Call", id: "QUEUE" }],
+    }),
     getCallTranscript: builder.query<TranscriptLine[], string>({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
       transformResponse: (response: CallTranscriptResponse) => (response.transcript ?? []).map(mapTranscriptLine),
@@ -169,13 +251,17 @@ export const callsApi = createApi({
           body: { id: Number.isFinite(numericId) ? numericId : id },
         };
       },
-      invalidatesTags: [{ type: "Call", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Call", id: "LIST" },
+        { type: "Call", id: "QUEUE" },
+      ],
     }),
   }),
 });
 
 export const {
   useGetCallsQuery,
+  useGetCallQueueQuery,
   useGetCallTranscriptQuery,
   useStartOutboundCallMutation,
 } = callsApi;

@@ -1,5 +1,5 @@
 import { createTheme } from "@mui/material/styles";
-import { fontFamily, fontSizeVars, palette, typographyScale } from "./tokens";
+import { elevation, fontFamily, fontSizeVars, palette, typographyScale } from "./tokens";
 
 declare module "@mui/material/styles" {
   interface PaletteColor {
@@ -369,6 +369,33 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           fontSize: fontSizeVars.body,
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 10,
+          border: `1px solid ${palette.grey[100]}`,
+          boxShadow: elevation.floatingMenu,
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 12,
+          boxShadow: elevation.floating,
+        },
+      },
+    },
+    MuiBackdrop: {
+      styleOverrides: {
+        root: {
+          backgroundColor: elevation.backdrop,
+        },
+        invisible: {
+          backgroundColor: "transparent",
         },
       },
     },

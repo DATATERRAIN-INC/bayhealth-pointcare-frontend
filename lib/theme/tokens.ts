@@ -109,3 +109,11 @@ export const palette = {
     900: "#0F172A",
   },
 } as const;
+
+/** Soft elevated shadows for floating menus, modals, and panels. */
+export const elevation = {
+  floating: "0 16px 48px rgba(15, 23, 42, 0.16), 0 4px 14px rgba(15, 23, 42, 0.08)",
+  floatingMenu: "0 10px 32px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.06)",
+  floatingPanel: "0 4px 16px rgba(15, 23, 42, 0.07), 0 1px 4px rgba(15, 23, 42, 0.04)",
+  backdrop: "rgba(15, 23, 42, 0.45)",
+} as const;

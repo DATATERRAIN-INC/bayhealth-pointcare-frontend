@@ -26,6 +26,7 @@ import {
   sanitizePhoneDigits,
   validatePhoneNumber,
 } from "@/lib/phone";
+import { elevation } from "@/lib/theme/tokens";
 
 const timezones = [
   { value: "America/New_York", label: "America/New_York (EDT)" },
@@ -169,8 +170,9 @@ const labelSx = {
 
 const surface = {
   bgcolor: "#FFFFFF",
-  border: "1px solid #E8EAEE",
-  borderRadius: "12px",
+  border: "1px solid #E5E9EF",
+  borderRadius: "10px",
+  boxShadow: elevation.floatingPanel,
 } as const;
 
 const switchSx = {
@@ -638,7 +640,7 @@ export function SettingsWorkspace() {
   }
 
   return (
-    <Stack spacing={2} sx={{ minHeight: "calc(100dvh - 116px)" }}>
+    <Stack spacing={2}>
       <Box>
         <Typography
           sx={{
@@ -664,7 +666,6 @@ export function SettingsWorkspace() {
           gridTemplateColumns: { xs: "1fr", md: "220px minmax(0, 1fr)" },
           gap: 2,
           alignItems: "start",
-          flex: 1,
         }}
       >
         <SettingsSections />
@@ -994,7 +995,7 @@ export function SettingsWorkspace() {
             })}
             <Box>
               <Button
-                variant="secondary"
+                variant="soft"
                 startIcon={<Plus size={15} />}
                 onClick={addLiveAgent}
                 sx={{ px: 1.75 }}

@@ -27,7 +27,12 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1200px)");
+    if (!media.matches) setSidebarOpen(false);
+  }, []);
 
   useEffect(() => {
     try {
@@ -87,21 +92,48 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box
+      sx={{
+        display: "flex",
+        height: "100dvh",
+        overflow: "hidden",
+        bgcolor: "background.default",
+      }}
+    >
       <ErrorBoundary fallbackTitle="Navigation unavailable">
-        <Sidebar
-          user={user}
-          mobileOpen={mobileNavOpen}
-          onMobileClose={() => setMobileNavOpen(false)}
-        />
+        <Sidebar user={user} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </ErrorBoundary>
 
-      <Box sx={{ display: "flex", minWidth: 0, flex: 1, flexDirection: "column" }}>
+      <Box
+        sx={{
+          display: "flex",
+          minWidth: 0,
+          minHeight: 0,
+          flex: 1,
+          flexDirection: "column",
+        }}
+      >
         <ErrorBoundary fallbackTitle="Top bar unavailable">
-          <AppTopBar user={user} onOpenMenu={() => setMobileNavOpen(true)} />
+          <AppTopBar
+            user={user}
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          />
         </ErrorBoundary>
 
-        <Box component="main" sx={{ flex: 1, minWidth: 0, px: { xs: 2, lg: 3 }, pb: 3, pt: { xs: 2, lg: 2.5 } }}>
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            px: { xs: 2, lg: 3 },
+            pb: 3,
+            pt: { xs: 2, lg: 2.5 },
+          }}
+        >
           <ErrorBoundary fallbackTitle="This page failed to load">
             <Suspense fallback={<AppLoadingFallback />}>{children}</Suspense>
           </ErrorBoundary>

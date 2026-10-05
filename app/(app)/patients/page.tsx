@@ -1,10 +1,17 @@
 import { Box, Stack, Typography } from "@mui/material";
-import { PatientsTableWorkspace } from "@/components/patients/PatientsTableWorkspace";
+import { Patient } from "@/components/patients/Patient";
 
 export default function PatientsPage() {
   return (
-    <Stack spacing={2}>
-      <Box>
+    <Stack
+      spacing={2}
+      sx={{
+        height: { xs: "calc(100dvh - 120px)", md: "calc(100dvh - 140px)" },
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+    >
+      <Box sx={{ flexShrink: 0 }}>
         <Typography sx={{ fontSize: 22, fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>
           Patients
         </Typography>
@@ -12,7 +19,9 @@ export default function PatientsPage() {
           View, add, and manage patient records.
         </Typography>
       </Box>
-      <PatientsTableWorkspace />
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Patient />
+      </Box>
     </Stack>
   );
 }

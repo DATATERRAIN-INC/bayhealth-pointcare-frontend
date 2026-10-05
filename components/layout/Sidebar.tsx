@@ -11,8 +11,9 @@ import {
   ListItemText,
   Stack,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
-import { Phone, Settings, Users } from "lucide-react";
+import { ListOrdered, Phone, Settings, Users } from "lucide-react";
 import { useState } from "react";
 import { ConfirmLogoutDialog } from "@/components/auth/ConfirmLogoutDialog";
 import { BachLogo } from "@/components/brand/BachLogo";
@@ -22,6 +23,7 @@ import type { User } from "@/types/user";
 const navItems = [
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/calls", label: "Calls and texts", icon: Phone },
+  { href: "/queue", label: "Call queue", icon: ListOrdered },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -29,13 +31,14 @@ const DRAWER_WIDTH = 232;
 
 interface SidebarProps {
   user: User;
-  mobileOpen: boolean;
-  onMobileClose: () => void;
+  open: boolean;
+  onClose: () => void;
 }
 
-export function Sidebar({ user, mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ user, open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const isDesktop = useMediaQuery((theme) => theme.breakpoints.up("lg"));
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   function handleLogoutConfirm() {
@@ -48,10 +51,14 @@ export function Sidebar({ user, mobileOpen, onMobileClose }: SidebarProps) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
+  function handleNavigate() {
+    if (!isDesktop) onClose();
+  }
+
   const drawerContent = (
     <Stack sx={{ height: "100%", bgcolor: "background.paper" }}>
       <Box sx={{ px: 2, pt: 2.25, pb: 1.5 }}>
-        <Link href="/patients" onClick={onMobileClose} style={{ textDecoration: "none" }}>
+        <Link href="/patients" onClick={handleNavigate} style={{ textDecoration: "none" }}>
           <BachLogo showTagline />
         </Link>
       </Box>
@@ -79,7 +86,7 @@ export function Sidebar({ user, mobileOpen, onMobileClose }: SidebarProps) {
               component={Link}
               href={href}
               selected={active}
-              onClick={onMobileClose}
+              onClick={handleNavigate}
               sx={{
                 borderRadius: 2,
                 mb: 0.5,
@@ -174,8 +181,8 @@ export function Sidebar({ user, mobileOpen, onMobileClose }: SidebarProps) {
 
       <Drawer
         variant="temporary"
-        open={mobileOpen}
-        onClose={onMobileClose}
+        open={open}
+        onClose={onClose}
         slotProps={{ root: { keepMounted: true } }}
         sx={{
           display: { xs: "block", lg: "none" },
@@ -186,19 +193,26 @@ export function Sidebar({ user, mobileOpen, onMobileClose }: SidebarProps) {
       </Drawer>
 
       <Drawer
-        variant="permanent"
-        open
+        variant="persistent"
+        open={open}
         sx={{
           display: { xs: "none", lg: "block" },
-          width: DRAWER_WIDTH,
+          width: open ? DRAWER_WIDTH : 0,
           flexShrink: 0,
+          whiteSpace: "nowrap",
+          transition: (theme) =>
+            theme.transitions.create("width", {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
           "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
             boxSizing: "border-box",
             borderRight: "1px solid #EEF0F4",
-            position: "sticky",
-            top: 0,
-            height: "100vh",
+            position: "relative",
+            height: "100dvh",
+            overflowX: "hidden",
+            overflowY: "auto",
           },
         }}
       >

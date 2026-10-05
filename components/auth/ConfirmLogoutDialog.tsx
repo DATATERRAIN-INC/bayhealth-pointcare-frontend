@@ -3,6 +3,7 @@
 import { Box, Dialog, Stack, Typography } from "@mui/material";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { elevation } from "@/lib/theme/tokens";
 
 interface ConfirmLogoutDialogProps {
   open: boolean;
@@ -18,14 +19,14 @@ export function ConfirmLogoutDialog({ open, onClose, onConfirm }: ConfirmLogoutD
       maxWidth={false}
       slotProps={{
         backdrop: {
-          sx: { bgcolor: "rgba(0, 0, 0, 0.45)" },
+          sx: { bgcolor: elevation.backdrop },
         },
         paper: {
           sx: {
             width: 440,
             maxWidth: "calc(100vw - 40px)",
-            borderRadius: "10px",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.18)",
+            borderRadius: "12px",
+            boxShadow: elevation.floating,
             overflow: "hidden",
             m: 2,
           },

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Badge,
@@ -12,10 +13,12 @@ import {
   MenuItem,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import LogoutIcon from "@mui/icons-material/Logout";
+import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import { Menu as MenuIcon } from "lucide-react";
 import { useState, type MouseEvent } from "react";
@@ -68,7 +71,18 @@ function NotificationsMenu({
       onClose={onClose}
       anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       transformOrigin={{ vertical: "top", horizontal: "right" }}
-      slotProps={{ paper: { sx: { width: 360, maxWidth: "calc(100vw - 24px)", mt: 1, borderRadius: 2 } } }}
+      slotProps={{
+        paper: {
+          sx: {
+            width: 360,
+            maxWidth: "calc(100vw - 24px)",
+            mt: 1,
+            borderRadius: 2,
+            boxShadow: "0 10px 32px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.06)",
+            border: "1px solid #F1F5F9",
+          },
+        },
+      }}
     >
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", px: 2, py: 1.25, gap: 1 }}>
         <Typography sx={{ fontSize: "var(--font-size-body)", fontWeight: 700, letterSpacing: "0.06em", color: "#8B93A7" }}>
@@ -111,11 +125,55 @@ function NotificationsMenu({
           ))
         )}
       </Box>
+      <Divider />
+      <MenuItem
+        component={Link}
+        href="/notifications"
+        onClick={onClose}
+        sx={{ justifyContent: "center", fontSize: "var(--font-size-body)", fontWeight: 600, color: "primary.main" }}
+      >
+        View all notifications
+      </MenuItem>
     </Menu>
   );
 }
 
+function patientStatusFrom(item: NotificationItem): string {
+  const meta = item.metadata ?? {};
+  const candidates = [
+    meta.patient_status,
+    meta.status,
+    meta.call_status,
+    meta.patientStatus,
+    meta.callStatus,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  if (typeof meta.is_blocked === "boolean") return meta.is_blocked ? "Blocked" : "Active";
+  if (typeof meta.blocked === "boolean") return meta.blocked ? "Blocked" : "Active";
+  return "";
+}
+
+function statusChipColors(status: string): { color: string; bgcolor: string } {
+  const normalized = status.trim().toLowerCase();
+  if (normalized.includes("block")) return { color: "#D14343", bgcolor: "#FDECEC" };
+  if (normalized.includes("active") || normalized.includes("success") || normalized.includes("complete")) {
+    return { color: "#178A45", bgcolor: "#E5F6EC" };
+  }
+  if (normalized.includes("fail") || normalized.includes("error") || normalized.includes("miss")) {
+    return { color: "#D14343", bgcolor: "#FDECEC" };
+  }
+  if (normalized.includes("pending") || normalized.includes("progress") || normalized.includes("call")) {
+    return { color: "#1D5F9A", bgcolor: "#EAF3FB" };
+  }
+  return { color: "#526071", bgcolor: "#F0F2F5" };
+}
+
 function NotificationRow({ item, onOpen }: { item: NotificationItem; onOpen: () => void }) {
+  const status = patientStatusFrom(item);
+  const statusColors = status ? statusChipColors(status) : null;
+
   return (
     <MenuItem onClick={onOpen} sx={{ py: 1.25, alignItems: "flex-start", whiteSpace: "normal", gap: 1 }}>
       <Box
@@ -128,18 +186,48 @@ function NotificationRow({ item, onOpen }: { item: NotificationItem; onOpen: () 
           bgcolor: item.is_read ? "transparent" : "primary.main",
         }}
       />
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: "var(--font-size-body)", fontWeight: item.is_read ? 500 : 700, color: "text.primary" }}>
-          {item.title}
-        </Typography>
-        {item.message ? (
-          <Typography sx={{ fontSize: "var(--font-size-body)", color: "text.secondary", lineHeight: 1.4 }}>
-            {item.message}
-          </Typography>
-        ) : null}
-        <Typography sx={{ mt: 0.25, fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
-          {timeAgo(item.created_at)}
-        </Typography>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography
+              sx={{
+                fontSize: "var(--font-size-body)",
+                fontWeight: item.is_read ? 500 : 700,
+                color: "text.primary",
+              }}
+            >
+              {item.title}
+            </Typography>
+            {item.message ? (
+              <Typography sx={{ mt: 0.25, fontSize: "var(--font-size-body)", color: "text.secondary", lineHeight: 1.4 }}>
+                {item.message}
+              </Typography>
+            ) : null}
+          </Box>
+          <Stack spacing={0.5} sx={{ alignItems: "flex-end", flexShrink: 0 }}>
+            {status && statusColors ? (
+              <Box
+                component="span"
+                sx={{
+                  display: "inline-flex",
+                  px: 0.8,
+                  py: 0.15,
+                  borderRadius: "999px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: statusColors.color,
+                  bgcolor: statusColors.bgcolor,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {status}
+              </Box>
+            ) : null}
+            <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", whiteSpace: "nowrap" }}>
+              {timeAgo(item.created_at)}
+            </Typography>
+          </Stack>
+        </Stack>
       </Box>
     </MenuItem>
   );
@@ -147,10 +235,11 @@ function NotificationRow({ item, onOpen }: { item: NotificationItem; onOpen: () 
 
 interface AppTopBarProps {
   user: User;
-  onOpenMenu: () => void;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }
 
-export function AppTopBar({ user, onOpenMenu }: AppTopBarProps) {
+export function AppTopBar({ user, sidebarOpen, onToggleSidebar }: AppTopBarProps) {
   const router = useRouter();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
@@ -171,6 +260,7 @@ export function AppTopBar({ user, onOpenMenu }: AppTopBarProps) {
         position: "sticky",
         top: 0,
         zIndex: 30,
+        flexShrink: 0,
         bgcolor: "rgba(255,255,255,0.95)",
         backdropFilter: "blur(8px)",
         borderBottom: "1px solid #EEF0F4",
@@ -182,31 +272,40 @@ export function AppTopBar({ user, onOpenMenu }: AppTopBarProps) {
         sx={{
           position: "relative",
           alignItems: "center",
-          justifyContent: { xs: "space-between", lg: "flex-end" },
+          justifyContent: "space-between",
           minHeight: { xs: 64, lg: 72 },
           px: { xs: 1.5, lg: 3 },
         }}
       >
-        <IconButton
-          onClick={onOpenMenu}
-          aria-label="Open navigation"
-          sx={{
-            display: { lg: "none" },
-            width: 40,
-            height: 40,
-            flexShrink: 0,
-            border: "1px solid #E6E8EE",
-            borderRadius: "50%",
-            color: "#3F4654",
-            bgcolor: "#FFFFFF",
-          }}
-        >
-          <MenuIcon size={18} />
-        </IconButton>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexShrink: 0 }}>
+          <Tooltip title={sidebarOpen ? "Hide menu" : "Show menu"} placement="bottom" arrow>
+            <IconButton
+              onClick={onToggleSidebar}
+              aria-label={sidebarOpen ? "Hide menu" : "Show menu"}
+              aria-expanded={sidebarOpen}
+              sx={{
+                width: 36,
+                height: 36,
+                flexShrink: 0,
+                border: "1px solid #E6E8EE",
+                borderRadius: 1,
+                color: "#667085",
+                bgcolor: "#FFFFFF",
+                "&:hover": { bgcolor: "#F8FAFC", color: "#344054" },
+              }}
+            >
+              {sidebarOpen ? <MenuOpenIcon sx={{ fontSize: 22 }} /> : <MenuIcon size={20} strokeWidth={1.75} />}
+            </IconButton>
+          </Tooltip>
+
+          <Box sx={{ display: { xs: "none", lg: sidebarOpen ? "none" : "block" } }}>
+            <BachLogo width={148} />
+          </Box>
+        </Stack>
 
         <Box
           sx={{
-            display: { lg: "none" },
+            display: { xs: "block", lg: "none" },
             position: "absolute",
             left: "50%",
             top: "50%",
@@ -217,7 +316,7 @@ export function AppTopBar({ user, onOpenMenu }: AppTopBarProps) {
           <BachLogo width={148} />
         </Box>
 
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexShrink: 0, ml: { lg: 0 } }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexShrink: 0 }}>
           <IconButton
             onClick={(event: MouseEvent<HTMLElement>) => setNotifAnchor(event.currentTarget)}
             aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
@@ -311,7 +410,17 @@ export function AppTopBar({ user, onOpenMenu }: AppTopBarProps) {
             onClose={() => setMenuAnchor(null)}
             anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
             transformOrigin={{ vertical: "top", horizontal: "right" }}
-            slotProps={{ paper: { sx: { width: 220, mt: 1, borderRadius: 2 } } }}
+            slotProps={{
+              paper: {
+                sx: {
+                  width: 220,
+                  mt: 1,
+                  borderRadius: 2,
+                  boxShadow: "0 10px 32px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.06)",
+                  border: "1px solid #F1F5F9",
+                },
+              },
+            }}
           >
             <Box sx={{ px: 2, py: 1.5 }}>
               <Typography sx={{ fontSize: "var(--font-size-body)", fontWeight: 600 }}>{user.name}</Typography>

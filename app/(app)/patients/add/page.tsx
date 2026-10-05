@@ -30,6 +30,7 @@ import {
   sanitizePhoneDigits,
   validatePhoneNumber,
 } from "@/lib/phone";
+import { elevation } from "@/lib/theme/tokens";
 
 const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
 
@@ -332,8 +333,9 @@ function AddPatientPage() {
             gap: 1.5,
             minHeight: 240,
             bgcolor: "#FFFFFF",
-            border: "1px solid #DDE3EA",
-            borderRadius: "12px",
+            border: "1px solid #E5E9EF",
+            borderRadius: "10px",
+            boxShadow: elevation.floatingPanel,
           }}
         >
           {isLoadingPatient ? (
@@ -397,10 +399,10 @@ function AddPatientPage() {
         sx={{
           width: "100%",
           bgcolor: "#FFFFFF",
-          border: "1px solid #DDE3EA",
-          borderRadius: "12px",
+          border: "1px solid #E5E9EF",
+          borderRadius: "10px",
           overflow: "hidden",
-          boxShadow: "0 1px 3px rgb(15 23 42 / 0.04)",
+          boxShadow: elevation.floatingPanel,
         }}
       >
         <Box sx={{ p: { xs: 2, sm: 2.5, lg: 3 } }}>

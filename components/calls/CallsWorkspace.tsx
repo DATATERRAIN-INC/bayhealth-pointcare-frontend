@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Skeleton,
@@ -23,6 +23,7 @@ import {
   type OutreachStatus,
 } from "@/data/gapCalls";
 import { useGetCallTranscriptQuery, useGetCallsQuery } from "@/lib/api/callsApi";
+import { elevation } from "@/lib/theme/tokens";
 
 type FilterKey = "all" | OutreachStatus;
 type ChannelFilterKey = "all" | OutreachChannel;
@@ -46,8 +47,9 @@ const channelFilters: {
 
 const surface = {
   bgcolor: "#FFFFFF",
-  border: "1px solid #E8EAEE",
-  borderRadius: "12px",
+  border: "1px solid #E5E9EF",
+  borderRadius: "10px",
+  boxShadow: elevation.floatingPanel,
 } as const;
 
 const DESKTOP_PANEL_HEIGHT = 640;
@@ -431,13 +433,26 @@ export function CallsWorkspace() {
   const [copied, setCopied] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
-  const { data, isUninitialized, isLoading, isFetching, isError } = useGetCallsQuery({
+  const [tablePending, setTablePending] = useState(true);
+  const { data, isUninitialized, isLoading, isFetching, isError, isPending } = useGetCallsQuery({
     page: page + 1,
     pageSize,
     status: filter === "all" ? undefined : filter,
     channel: channelFilter === "all" ? undefined : channelFilter,
   });
-  const showSkeleton = !isError && !data && (isUninitialized || isLoading || isFetching);
+
+  useEffect(() => {
+    if (!tablePending) return;
+    if (isFetching || isPending || isLoading) return;
+    setTablePending(false);
+  }, [tablePending, isFetching, isPending, isLoading]);
+
+  const showSkeleton =
+    !isError && (tablePending || isPending || isUninitialized || isLoading || isFetching);
+
+  function beginTableFetch() {
+    setTablePending(true);
+  }
 
   const apiRows = data?.results ?? [];
   // Client-side channel filter as a fallback if the API ignores `channel`.
@@ -514,7 +529,7 @@ export function CallsWorkspace() {
 
   function skeletonRows() {
     const bone = { bgcolor: "#E9EEF4", borderRadius: "6px" } as const;
-    return Array.from({ length: 8 }, (_, rowIndex) => (
+    return Array.from({ length: pageSize }, (_, rowIndex) => (
       <TableRow key={`call-skeleton-${rowIndex}`}>
         <TableCell>
           <Skeleton variant="rounded" animation="wave" width="62%" height={16} sx={bone} />
@@ -588,6 +603,7 @@ export function CallsWorkspace() {
           items={channelFilters}
           value={channelFilter}
           onChange={(next) => {
+            beginTableFetch();
             setChannelFilter(next);
             setPage(0);
             setSelectedId("");
@@ -619,6 +635,7 @@ export function CallsWorkspace() {
             status={filter}
             statusCounts={filterCounts}
             onStatusChange={(next) => {
+              beginTableFetch();
               setFilter(next);
               setPage(0);
               setSelectedId("");
@@ -720,8 +737,15 @@ export function CallsWorkspace() {
               page={page}
               pageSize={pageSize}
               rowCount={rowCount}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              onPageChange={(next) => {
+                beginTableFetch();
+                setPage(next);
+              }}
+              onPageSizeChange={(next) => {
+                beginTableFetch();
+                setPageSize(next);
+                setPage(0);
+              }}
             />
           ) : null}
         </Box>
@@ -753,6 +777,7 @@ export function CallsWorkspace() {
             value={filter}
             counts={filterCounts}
             onChange={(next) => {
+              beginTableFetch();
               setFilter(next);
               setPage(0);
               setMobileOpenId(null);
@@ -761,7 +786,7 @@ export function CallsWorkspace() {
         </Box>
         {showSkeleton ? (
           <Stack spacing={1.5}>
-            {Array.from({ length: 3 }, (_, index) => (
+            {Array.from({ length: Math.min(pageSize, 6) }, (_, index) => (
               <Skeleton key={`call-mobile-skeleton-${index}`} variant="rounded" height={92} sx={{ bgcolor: "#E9EEF4", borderRadius: "12px" }} />
             ))}
           </Stack>
@@ -863,8 +888,15 @@ export function CallsWorkspace() {
               page={page}
               pageSize={pageSize}
               rowCount={rowCount}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              onPageChange={(next) => {
+                beginTableFetch();
+                setPage(next);
+              }}
+              onPageSizeChange={(next) => {
+                beginTableFetch();
+                setPageSize(next);
+                setPage(0);
+              }}
             />
           </Box>
         ) : null}
