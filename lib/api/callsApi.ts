@@ -269,7 +269,7 @@ export const callsApi = createApi({
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
-          status: "queued",
+          status: JSON.stringify(["queued", "paused"]),
         });
         return `/calls/?${params.toString()}`;
       },
