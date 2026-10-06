@@ -315,12 +315,12 @@ export const callsApi = createApi({
       providesTags: [{ type: "Call", id: "SUMMARY" }],
       keepUnusedDataFor: 120,
     }),
-    getQueuedCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number }>({
-      query: ({ page, pageSize }) => {
+    getQueuedCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number; status: string }>({
+      query: ({ page, pageSize, status }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
-          status: JSON.stringify(["queued", "paused", "scheduled"]),
+          status,
           // ordering: "dial_queue",
         });
         return `/calls/?${params.toString()}`;
