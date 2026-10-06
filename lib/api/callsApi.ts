@@ -142,6 +142,7 @@ function mapQueueItem(record: CallApiRecord, position: number, status: QueueStat
     queuedAt: record.created_at ?? record.started_at ?? null,
     startedAt: record.started_at ?? null,
     scheduledAt: record.scheduled_at ?? null,
+    doctor: record.doctor?.trim() || undefined,
     reason: reason || undefined,
   };
 } 
@@ -358,6 +359,18 @@ export const callsApi = createApi({
         { type: "Call", id: "SUMMARY" },
       ],
     }),
+    triggerCall: builder.mutation<unknown, { id: number | string }>({
+      query: ({ id }) => ({
+        url: `/calls/${id}/trigger/`,
+        method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "Call", id: "LIST" },
+        { type: "Call", id: "QUEUE" },
+        { type: "Call", id: "QUEUE_WAITING" },
+        { type: "Call", id: "SUMMARY" },
+      ],
+    }),
     startOutboundCall: builder.mutation<unknown, { id: number | string }>({
       query: ({ id }) => {
         const numericId = Number(id);
@@ -385,5 +398,6 @@ export const {
   useGetCallTranscriptQuery,
   useSetCallPausedMutation,
   useCancelCallMutation,
+  useTriggerCallMutation,
   useStartOutboundCallMutation,
 } = callsApi;
