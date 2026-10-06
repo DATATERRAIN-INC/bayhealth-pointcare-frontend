@@ -29,6 +29,7 @@ export interface QueueCallItem {
   estimate: ProcessingEstimate;
   queuedAt: string | null;
   startedAt: string | null;
+  scheduledAt?: string | null;
   doctor?: string;
   reason?: string;
 }

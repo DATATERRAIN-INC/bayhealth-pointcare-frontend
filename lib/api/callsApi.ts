@@ -141,9 +141,10 @@ function mapQueueItem(record: CallApiRecord, position: number, status: QueueStat
                   : estimateForQueuedPosition(position),
     queuedAt: record.created_at ?? record.started_at ?? null,
     startedAt: record.started_at ?? null,
+    scheduledAt: record.scheduled_at ?? null,
     reason: reason || undefined,
   };
-}
+} 
 
 export interface InProgressCallsPage {
   count: number;
@@ -151,6 +152,37 @@ export interface InProgressCallsPage {
   page: number;
   pageSize: number;
   results: QueueCallItem[];
+}
+
+export interface CallSummary {
+  all: number;
+  completed: number;
+  in_progress: number;
+  not_attended: number;
+  callback: number;
+  queued: number;
+  scheduled: number;
+  paused: number;
+  cancel: number;
+}
+
+function asCount(value: unknown): number {
+  const count = Number(value);
+  return Number.isFinite(count) ? count : 0;
+}
+
+function mapCallSummary(response: Partial<CallSummary> | null | undefined): CallSummary {
+  return {
+    all: asCount(response?.all),
+    completed: asCount(response?.completed),
+    in_progress: asCount(response?.in_progress),
+    not_attended: asCount(response?.not_attended),
+    callback: asCount(response?.callback),
+    queued: asCount(response?.queued),
+    scheduled: asCount(response?.scheduled),
+    paused: asCount(response?.paused),
+    cancel: asCount(response?.cancel),
+  };
 }
 
 /** Load once. The refresh button refetches. Do not poll with the notification summary. */
@@ -276,6 +308,12 @@ export const callsApi = createApi({
       providesTags: [{ type: "Call", id: "QUEUE" }],
       keepUnusedDataFor: 120,
     }),
+    getCallSummary: builder.query<CallSummary, void>({
+      query: () => "/calls/summary/",
+      transformResponse: (response: Partial<CallSummary>) => mapCallSummary(response),
+      providesTags: [{ type: "Call", id: "SUMMARY" }],
+      keepUnusedDataFor: 120,
+    }),
     getQueuedCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number }>({
       query: ({ page, pageSize }) => {
         const params = new URLSearchParams({
@@ -304,6 +342,7 @@ export const callsApi = createApi({
         { type: "Call", id: "LIST" },
         { type: "Call", id: "QUEUE" },
         { type: "Call", id: "QUEUE_WAITING" },
+        { type: "Call", id: "SUMMARY" },
       ],
     }),
     cancelCall: builder.mutation<unknown, { id: number | string }>({
@@ -316,6 +355,7 @@ export const callsApi = createApi({
         { type: "Call", id: "LIST" },
         { type: "Call", id: "QUEUE" },
         { type: "Call", id: "QUEUE_WAITING" },
+        { type: "Call", id: "SUMMARY" },
       ],
     }),
     startOutboundCall: builder.mutation<unknown, { id: number | string }>({
@@ -331,6 +371,7 @@ export const callsApi = createApi({
         { type: "Call", id: "LIST" },
         { type: "Call", id: "QUEUE" },
         { type: "Call", id: "QUEUE_WAITING" },
+        { type: "Call", id: "SUMMARY" },
       ],
     }),
   }),
@@ -339,6 +380,7 @@ export const callsApi = createApi({
 export const {
   useGetCallsQuery,
   useGetCallQueueQuery,
+  useGetCallSummaryQuery,
   useGetQueuedCallQueueQuery,
   useGetCallTranscriptQuery,
   useSetCallPausedMutation,

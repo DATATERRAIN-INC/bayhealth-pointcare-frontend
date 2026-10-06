@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CalendarDays } from "lucide-react";
 import dayjs, { type Dayjs } from "dayjs";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -33,6 +33,46 @@ function CalendarIcon({ className }: { className?: string }) {
   return <CalendarDays className={className} size={18} strokeWidth={1.75} />;
 }
 
+function sectionLooksEmpty(text: string, placeholders: string[]) {
+  const value = text.trim();
+  if (!value) return true;
+  return placeholders.some((placeholder) => placeholder.toLowerCase() === value.toLowerCase());
+}
+
+/** Empty section + Backspace steps to the previous section and clears it. */
+function handleSectionBackspace(event: KeyboardEvent<HTMLDivElement>, placeholders: string[]) {
+  if (event.key !== "Backspace" || event.altKey || event.ctrlKey || event.metaKey) return;
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.classList.contains("MuiPickersSectionList-sectionContent")) return;
+  if (!sectionLooksEmpty(target.textContent ?? "", placeholders)) return;
+
+  const current = target.closest<HTMLElement>("[data-sectionindex]");
+  const index = Number(current?.dataset.sectionindex);
+  if (!current || !Number.isInteger(index) || index <= 0) return;
+
+  const previous = current.parentElement?.querySelector<HTMLElement>(
+    `[data-sectionindex="${index - 1}"] .MuiPickersSectionList-sectionContent`,
+  );
+  if (!previous) return;
+
+  event.preventDefault();
+  const previousText = previous.textContent ?? "";
+  previous.focus();
+  // element.focus() does not notify the field, so the year stays selected.
+  previous.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+  if (sectionLooksEmpty(previousText, placeholders)) return;
+
+  window.setTimeout(() => {
+    if (!previous.isConnected) return;
+    previous.textContent = "";
+    previous.dispatchEvent(
+      new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }),
+    );
+  }, 0);
+}
+
 /** App-styled date field. Value stays a `Date` so callers do not depend on dayjs. */
 export function AppDatePicker({
   value,
@@ -47,6 +87,11 @@ export function AppDatePicker({
   const [draft, setDraft] = useState<Dayjs | null>(() => toDayjs(value));
   const emittedTime = useRef<number | null>(value?.getTime() ?? null);
   const [monthPlaceholder, dayPlaceholder, yearPlaceholder] = placeholder.split("/");
+  const sectionPlaceholders = [
+    monthPlaceholder || "MM",
+    dayPlaceholder || "DD",
+    yearPlaceholder || "YYYY",
+  ];
 
   useEffect(() => {
     const incoming = value?.getTime() ?? null;
@@ -89,6 +134,7 @@ export function AppDatePicker({
             fullWidth,
             error,
             helperText,
+            onKeyDown: (event) => handleSectionBackspace(event, sectionPlaceholders),
             sx: {
               "& .MuiPickersOutlinedInput-root": {
                 height: "var(--control-height)",
