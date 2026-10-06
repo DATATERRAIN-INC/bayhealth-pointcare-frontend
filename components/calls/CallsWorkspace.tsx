@@ -14,11 +14,10 @@ import { TablePager } from "@/components/shared/TablePager";
 import {
   ChannelChip,
   DESKTOP_PANEL_HEIGHT,
-  StatusChip,
-  StatusLabel,
   TranscriptBody,
   TranscriptPanel,
 } from "@/components/calls/CallTranscriptPanel";
+import { CallStatusChip } from "@/components/shared/CallStatusChip";
 import {
   type OutreachCall,
   type OutreachChannel,
@@ -34,6 +33,7 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "completed", label: "Completed" },
   { key: "in_progress", label: "In progress" },
+  { key: "callback", label: "Callback" },
   { key: "not_attended", label: "Not attended" },
 ];
 
@@ -252,6 +252,7 @@ export function CallsWorkspace() {
     if (fullListLoaded) {
       counts.completed = apiRows.filter((call) => call.status === "completed").length;
       counts.in_progress = apiRows.filter((call) => call.status === "in_progress").length;
+      counts.callback = apiRows.filter((call) => call.status === "callback").length;
       counts.not_attended = apiRows.filter((call) => call.status === "not_attended").length;
     } else if (filter !== "all") {
       counts[filter] = rowCount;
@@ -333,7 +334,7 @@ export function CallsWorkspace() {
         flex: 0.9,
         minWidth: 120,
         sortable: false,
-        renderCell: (params) => <StatusLabel status={params.row.status} />,
+        renderCell: (params) => <CallStatusChip status={params.row.status} />,
       },
       {
         field: "started",
@@ -638,7 +639,7 @@ export function CallsWorkspace() {
                   </Typography>
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexShrink: 0 }}>
                     <ChannelChip channel={call.channel} />
-                    <StatusChip status={call.status} />
+                    <CallStatusChip status={call.status} />
                   </Stack>
                 </Stack>
                 <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>

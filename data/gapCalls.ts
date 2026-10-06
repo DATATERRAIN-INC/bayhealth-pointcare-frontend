@@ -1,4 +1,6 @@
-export type OutreachStatus = "completed" | "in_progress" | "not_attended";
+import type { CallStatus } from "@/components/shared/CallStatusChip";
+
+export type OutreachStatus = "completed" | "in_progress" | "not_attended" | "callback";
 export type OutreachChannel = "call" | "text";
 
 export interface TranscriptLine {
@@ -12,7 +14,7 @@ export interface OutreachCall {
   callNumber: number;
   patientName: string;
   channel: OutreachChannel;
-  status: OutreachStatus;
+  status: CallStatus | null;
   started: string;
   duration: string;
   dateLabel: string;
@@ -22,12 +24,6 @@ export interface OutreachCall {
   retellCallId: string;
   messages: TranscriptLine[];
 }
-
-export const statusMeta: Record<OutreachStatus, { label: string; color: string }> = {
-  completed: { label: "Completed", color: "#1B7A45" },
-  in_progress: { label: "In Progress", color: "#F08A1A" },
-  not_attended: { label: "Not attended", color: "#D14343" },
-};
 
 export const channelMeta: Record<OutreachChannel, { label: string; color: string; bg: string }> = {
   call: { label: "Call", color: "#1C4E8A", bg: "#E8F1FB" },

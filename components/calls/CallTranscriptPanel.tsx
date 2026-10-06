@@ -6,11 +6,10 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
   channelMeta,
-  statusMeta,
   type OutreachCall,
   type OutreachChannel,
-  type OutreachStatus,
 } from "@/data/gapCalls";
+import { CallStatusChip } from "@/components/shared/CallStatusChip";
 import { elevation } from "@/lib/theme/tokens";
 
 export const DESKTOP_PANEL_HEIGHT = 640;
@@ -21,38 +20,6 @@ const surface = {
   borderRadius: "10px",
   boxShadow: elevation.floatingPanel,
 } as const;
-
-const statusChip: Record<OutreachStatus, { bg: string; color: string }> = {
-  completed: { bg: "#E5F6EC", color: "#178A45" },
-  in_progress: { bg: "#E7F1FB", color: "#2F6FED" },
-  not_attended: { bg: "#FDECEC", color: "#D14343" },
-};
-
-export function StatusChip({ status }: { status: OutreachStatus }) {
-  const chip = statusChip[status];
-  const label = status === "in_progress" ? "In progress" : statusMeta[status].label;
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        px: 1.1,
-        py: 0.35,
-        borderRadius: "999px",
-        bgcolor: chip.bg,
-        color: chip.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 600,
-        lineHeight: 1.3,
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}
-    >
-      {label}
-    </Box>
-  );
-}
 
 export function ChannelChip({ channel }: { channel: OutreachChannel }) {
   const meta = channelMeta[channel];
@@ -74,37 +41,6 @@ export function ChannelChip({ channel }: { channel: OutreachChannel }) {
         flexShrink: 0,
       }}
     >
-      {meta.label}
-    </Box>
-  );
-}
-
-export function StatusLabel({ status }: { status: OutreachStatus }) {
-  const meta = statusMeta[status];
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 1,
-        color: meta.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 500,
-        whiteSpace: "nowrap",
-        lineHeight: 1.4,
-      }}
-    >
-      <Box
-        component="span"
-        sx={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          bgcolor: meta.color,
-          flexShrink: 0,
-        }}
-      />
       {meta.label}
     </Box>
   );
@@ -333,7 +269,7 @@ export function TranscriptPanel({
         </Box>
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
           <ChannelChip channel={call.channel} />
-          <StatusLabel status={call.status} />
+          <CallStatusChip status={call.status} />
           <Box
             component="button"
             type="button"

@@ -1,5 +1,6 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
+import { parseCallStatus, type CallStatus } from "@/components/shared/CallStatusChip";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
 import type { ProcessingEstimate, QueueCallItem, QueueStatus } from "@/types/queue";
@@ -23,16 +24,16 @@ export interface CallsPage {
   results: OutreachCall[];
 }
 
-function mapStatus(value: string | undefined): OutreachStatus {
+function mapStatus(value: string | undefined): CallStatus | null {
+  const parsed = parseCallStatus(value);
+  if (parsed) return parsed;
   const status = String(value ?? "")
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
-  if (status === "completed" || status === "complete" || status === "ended") return "completed";
-  if (status === "in_progress" || status === "ongoing" || status === "ringing" || status === "queued") {
-    return "in_progress";
-  }
-  return "not_attended";
+  if (status === "complete" || status === "ended") return "completed";
+  if (status === "ongoing" || status === "ringing") return "in_progress";
+  return null;
 }
 
 export function mapChannel(record: CallApiRecord): OutreachChannel {
