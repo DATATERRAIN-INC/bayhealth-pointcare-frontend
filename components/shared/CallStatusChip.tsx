@@ -4,19 +4,23 @@ import { Box, Typography } from "@mui/material";
 
 export type CallStatus =
   | "queued"
-  | "paused"
   | "in_progress"
   | "completed"
   | "not_attended"
-  | "callback";
+  | "callback"
+  | "scheduled"
+  | "paused"
+  | "cancel";
 
 const CALL_STATUS_META: Record<CallStatus, { label: string; color: string; bg: string }> = {
   queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
-  paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
   in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
   completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
   not_attended: { label: "Not attended", color: "#D14343", bg: "#FDECEC" },
-  callback: { label: "Scheduled", color: "#B45309", bg: "#FEF3C7" },
+  callback: { label: "Callback", color: "#B45309", bg: "#FEF3C7" },
+  scheduled: { label: "Scheduled", color: "#5B4DB5", bg: "#EEEAFE" },
+  paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
+  cancel: { label: "Cancelled", color: "#6B7280", bg: "#F3F4F6" },
 };
 
 export function parseCallStatus(value: unknown): CallStatus | null {
@@ -30,8 +34,14 @@ export function parseCallStatus(value: unknown): CallStatus | null {
     status === "in_progress" ||
     status === "completed" ||
     status === "not_attended" ||
-    status === "callback"
+    status === "callback" ||
+    status === "scheduled" ||
+    status === "paused" ||
+    status === "cancel" ||
+    status === "cancelled" ||
+    status === "canceled"
   ) {
+    if (status === "cancelled" || status === "canceled") return "cancel";
     return status;
   }
   return null;
