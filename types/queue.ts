@@ -2,6 +2,7 @@ export type QueueStatus =
   | "in_progress"
   | "queued"
   | "paused"
+  | "scheduled"
   | "failed"
   | "completed"
   | "cancelled";
@@ -13,6 +14,7 @@ export type ProcessingEstimate =
   | "about_5m"
   | "about_10m"
   | "on_hold"
+  | "scheduled"
   | "needs_retry"
   | "done"
   | "removed";
@@ -40,6 +42,7 @@ export const queueStatusMeta: Record<QueueStatus, { label: string; color: string
   in_progress: { label: "In Progress", color: "#1D5F9A", bg: "#E8F3FC" },
   queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
   paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
+  scheduled: { label: "Scheduled", color: "#5B4DB5", bg: "#EEEAFE" },
   failed: { label: "Failed", color: "#D14343", bg: "#FDECEC" },
   completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
   cancelled: { label: "Cancelled", color: "#6B7280", bg: "#F3F4F6" },
@@ -52,6 +55,7 @@ export const processingEstimateMeta: Record<ProcessingEstimate, string> = {
   about_5m: "~5 min",
   about_10m: "~10 min",
   on_hold: "On hold",
+  scheduled: "Scheduled",
   needs_retry: "Failed",
   done: "Finished",
   removed: "Removed",
