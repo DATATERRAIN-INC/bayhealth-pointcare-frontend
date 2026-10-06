@@ -113,9 +113,10 @@ function estimateForQueuedPosition(positionAmongQueued: number): ProcessingEstim
 }
 
 function mapQueueItem(record: CallApiRecord, position: number, status: QueueStatus): QueueCallItem {
-  const reason = record.decline_reason?.trim() || "";
+  const reason =
+    record.reason?.trim() || record.service_name?.trim() || record.decline_reason?.trim() || "";
   return {
-    id: String(record.patient ?? record.id ?? ""),
+    id: String(record.id ?? ""),
     position,
     patientName: record.patient_name?.trim() || "Unknown patient",
     phone: formatPhone(record),
@@ -147,23 +148,13 @@ export interface InProgressCallsPage {
   results: QueueCallItem[];
 }
 
-/** Shared RTK Query subscription settings for queue screens (stable reference). */
-export const callQueueQueryBaseOptions = {
+/** Load once. The refresh button refetches. Do not poll with the notification summary. */
+export const callQueueSubscriptionOptions = {
   refetchOnMountOrArgChange: 30,
   refetchOnFocus: false,
   refetchOnReconnect: true,
-  skipPollingIfUnfocused: true,
+  pollingInterval: 0,
 } as const;
-
-const QUEUE_POLL_MS = 30_000;
-const QUEUE_IDLE_POLL_MS = 0;
-
-export function callQueueSubscriptionOptions(hasQueueActivity: boolean) {
-  return {
-    ...callQueueQueryBaseOptions,
-    pollingInterval: hasQueueActivity ? QUEUE_POLL_MS : QUEUE_IDLE_POLL_MS,
-  };
-}
 
 function mapQueueCallsPage(response: CallsListResponse | CallApiRecord[]): InProgressCallsPage {
   const records = asCallRecords(response);
@@ -171,7 +162,7 @@ function mapQueueCallsPage(response: CallsListResponse | CallApiRecord[]): InPro
   const pageSize = Array.isArray(response) ? Math.max(records.length, 1) : response.page_size ?? Math.max(records.length, 1);
   const start = Math.max(0, page - 1) * pageSize;
   const results = records.map((record, index) => {
-    const status = mapQueueStatusFromApi(record.status);
+    const status = record.paused === true ? "paused" : mapQueueStatusFromApi(record.status);
     return mapQueueItem(record, start + index + 1, status);
   });
   const count = Array.isArray(response) ? records.length : response.count ?? results.length;
@@ -278,7 +269,7 @@ export const callsApi = createApi({
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
-          status: "queued",
+          status: JSON.stringify(["queued", "paused"]),
         });
         return `/calls/?${params.toString()}`;
       },
@@ -289,6 +280,18 @@ export const callsApi = createApi({
     getCallTranscript: builder.query<TranscriptLine[], string>({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
       transformResponse: (response: CallTranscriptResponse) => (response.transcript ?? []).map(mapTranscriptLine),
+    }),
+    setCallPaused: builder.mutation<unknown, { id: number | string; paused: boolean }>({
+      query: ({ id, paused }) => ({
+        url: `/calls/${id}/`,
+        method: "PUT",
+        body: { paused },
+      }),
+      invalidatesTags: [
+        { type: "Call", id: "LIST" },
+        { type: "Call", id: "QUEUE" },
+        { type: "Call", id: "QUEUE_WAITING" },
+      ],
     }),
     startOutboundCall: builder.mutation<unknown, { id: number | string }>({
       query: ({ id }) => {
@@ -313,5 +316,6 @@ export const {
   useGetCallQueueQuery,
   useGetQueuedCallQueueQuery,
   useGetCallTranscriptQuery,
+  useSetCallPausedMutation,
   useStartOutboundCallMutation,
 } = callsApi;

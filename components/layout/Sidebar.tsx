@@ -10,6 +10,7 @@ import {
   ListItemIcon,
   ListItemText,
   Stack,
+  Tooltip,
   Typography,
   useMediaQuery,
 } from "@mui/material";
@@ -28,6 +29,7 @@ const navItems = [
 ] as const;
 
 const DRAWER_WIDTH = 232;
+const COLLAPSED_WIDTH = 72;
 
 interface SidebarProps {
   user: User;
@@ -55,42 +57,52 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
     if (!isDesktop) onClose();
   }
 
+  const collapsed = isDesktop && !open;
+  const drawerWidth = collapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
+
   const drawerContent = (
     <Stack sx={{ height: "100%", bgcolor: "background.paper" }}>
-      <Box sx={{ px: 2, pt: 2.25, pb: 1.5 }}>
-        <Link href="/patients" onClick={handleNavigate} style={{ textDecoration: "none" }}>
-          <BachLogo showTagline />
-        </Link>
-      </Box>
+      {collapsed ? null : (
+        <Box sx={{ px: 2, pt: 2.25, pb: 1.5 }}>
+          <Link href="/patients" onClick={handleNavigate} style={{ textDecoration: "none" }}>
+            <BachLogo showTagline />
+          </Link>
+        </Box>
+      )}
 
-      <Typography
-        sx={{
-          px: 2.5,
-          pt: 1.5,
-          pb: 0.75,
-          fontSize: "var(--font-size-body)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          color: "#8B93A7",
-        }}
-      >
-        GAP IN CARE
-      </Typography>
+      {collapsed ? null : (
+        <Typography
+          sx={{
+            px: 2.5,
+            pt: 1.5,
+            pb: 0.75,
+            fontSize: "var(--font-size-body)",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            color: "#8B93A7",
+          }}
+        >
+          GAP IN CARE
+        </Typography>
+      )}
 
-      <List sx={{ flex: 1, px: 1.5 }}>
+      <List sx={{ flex: 1, px: collapsed ? 1 : 1.5, pt: collapsed ? 2 : 0 }}>
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
-          return (
+          const button = (
             <ListItemButton
               key={href}
               component={Link}
               href={href}
               selected={active}
+              aria-label={label}
               onClick={handleNavigate}
               sx={{
                 borderRadius: 2,
                 mb: 0.5,
                 py: 0.9,
+                px: collapsed ? 1 : 2,
+                justifyContent: collapsed ? "center" : "flex-start",
                 color: active ? "primary.main" : "#4B5568",
                 "&.Mui-selected": {
                   bgcolor: "#E8F3FC",
@@ -100,74 +112,34 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
                 },
               }}
             >
-              <ListItemIcon sx={{ minWidth: 32, color: active ? "primary.main" : "#6B7280" }}>
-                <Icon size={16} />
-              </ListItemIcon>
-              <ListItemText
-                primary={label}
-                slotProps={{
-                  primary: { sx: { fontSize: "var(--font-size-body)", fontWeight: active ? 600 : 500 } },
+              <ListItemIcon
+                sx={{
+                  minWidth: collapsed ? 0 : 32,
+                  justifyContent: "center",
+                  color: active ? "primary.main" : "#6B7280",
                 }}
-              />
+              >
+                <Icon size={18} />
+              </ListItemIcon>
+              {collapsed ? null : (
+                <ListItemText
+                  primary={label}
+                  slotProps={{
+                    primary: { sx: { fontSize: "var(--font-size-body)", fontWeight: active ? 600 : 500 } },
+                  }}
+                />
+              )}
             </ListItemButton>
+          );
+          return collapsed ? (
+            <Tooltip key={href} title={label} placement="right">
+              {button}
+            </Tooltip>
+          ) : (
+            button
           );
         })}
       </List>
-
-      <Box sx={{ p: 1.5 }}>
-        <Stack
-          direction="row"
-          spacing={1.25}
-          sx={{
-            alignItems: "center",
-            px: 1.25,
-            py: 1,
-            borderRadius: 2.5,
-            border: "1px solid",
-            borderColor: "#EEF0F4",
-          }}
-        >
-          <Box
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              bgcolor: "#E8F3FC",
-              color: "primary.main",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "var(--font-size-body)",
-              fontWeight: 700,
-              flexShrink: 0,
-            }}
-          >
-            {user.avatarInitials}
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography noWrap sx={{ fontSize: "var(--font-size-body)", fontWeight: 600, color: "text.primary" }}>
-              {user.name}
-            </Typography>
-            <Typography
-              component="button"
-              type="button"
-              onClick={() => setLogoutOpen(true)}
-              sx={{
-                p: 0,
-                border: 0,
-                bgcolor: "transparent",
-                color: "primary.main",
-                fontSize: "var(--font-size-body)",
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Sign out
-            </Typography>
-          </Box>
-        </Stack>
-      </Box>
     </Stack>
   );
 
@@ -194,10 +166,10 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
 
       <Drawer
         variant="persistent"
-        open={open}
+        open
         sx={{
           display: { xs: "none", lg: "block" },
-          width: open ? DRAWER_WIDTH : 0,
+          width: drawerWidth,
           flexShrink: 0,
           whiteSpace: "nowrap",
           transition: (theme) =>
@@ -206,13 +178,18 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
               duration: theme.transitions.duration.enteringScreen,
             }),
           "& .MuiDrawer-paper": {
-            width: DRAWER_WIDTH,
+            width: drawerWidth,
             boxSizing: "border-box",
             borderRight: "1px solid #EEF0F4",
             position: "relative",
             height: "100dvh",
             overflowX: "hidden",
             overflowY: "auto",
+            transition: (theme) =>
+              theme.transitions.create("width", {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+              }),
           },
         }}
       >
