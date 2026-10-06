@@ -104,7 +104,7 @@ function mapQueueStatusFromApi(value: string | undefined): QueueStatus {
   if (status === "scheduled") return "scheduled";
   if (status === "failed" || status === "not_attended") return "failed";
   if (status === "completed" || status === "complete" || status === "ended") return "completed";
-  if (status === "cancelled" || status === "canceled") return "cancelled";
+  if (status === "cancelled" || status === "canceled" || status === "cancel") return "cancelled";
   return "queued";
 }
 
@@ -282,6 +282,7 @@ export const callsApi = createApi({
           page: String(page),
           page_size: String(pageSize),
           status: JSON.stringify(["queued", "paused", "scheduled"]),
+          // ordering: "dial_queue",
         });
         return `/calls/?${params.toString()}`;
       },
@@ -297,7 +298,19 @@ export const callsApi = createApi({
       query: ({ id, paused }) => ({
         url: `/calls/${id}/`,
         method: "PUT",
-        body: { paused },
+        body: { status: paused ? "paused" : "queued" },
+      }),
+      invalidatesTags: [
+        { type: "Call", id: "LIST" },
+        { type: "Call", id: "QUEUE" },
+        { type: "Call", id: "QUEUE_WAITING" },
+      ],
+    }),
+    cancelCall: builder.mutation<unknown, { id: number | string }>({
+      query: ({ id }) => ({
+        url: `/calls/${id}/`,
+        method: "PUT",
+        body: { status: "cancel" },
       }),
       invalidatesTags: [
         { type: "Call", id: "LIST" },
@@ -329,5 +342,6 @@ export const {
   useGetQueuedCallQueueQuery,
   useGetCallTranscriptQuery,
   useSetCallPausedMutation,
+  useCancelCallMutation,
   useStartOutboundCallMutation,
 } = callsApi;

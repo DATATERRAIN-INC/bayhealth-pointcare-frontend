@@ -28,6 +28,7 @@ import { channelMeta } from "@/data/gapCalls";
 import {
   callQueueSubscriptionOptions,
   useGetCallQueueQuery,
+  useCancelCallMutation,
   useGetQueuedCallQueueQuery,
   useSetCallPausedMutation,
   useStartOutboundCallMutation,
@@ -177,20 +178,22 @@ type QueueAction =
 
 const QUEUE_TABLE_COLUMNS = "48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px 44px";
 const QUEUE_TABLE_COLUMNS_XS = "44px minmax(0, 1fr) 40px";
+const QUEUE_TABLE_COLUMNS_NO_ACTION = "48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px";
+const QUEUE_TABLE_COLUMNS_XS_NO_ACTION = "44px minmax(0, 1fr)";
 
-function QueueTableHeader() {
+function QueueTableHeader({ showActions = true }: { showActions?: boolean }) {
   return (
     <Box
       sx={{
         display: { xs: "none", lg: "grid" },
-        gridTemplateColumns: QUEUE_TABLE_COLUMNS,
+        gridTemplateColumns: showActions ? QUEUE_TABLE_COLUMNS : QUEUE_TABLE_COLUMNS_NO_ACTION,
         columnGap: 1.25,
         px: 2,
         py: 1,
         borderBottom: "1px solid #F0F2F5",
       }}
     >
-      {["#", "Patient", "Reason", "Status", "Estimate", "Action"].map((heading) => (
+      {["#", "Patient", "Reason", "Status", "Estimate", ...(showActions ? ["Action"] : [])].map((heading) => (
         <Typography
           key={heading}
           sx={{
@@ -292,7 +295,13 @@ function QueuePagerSkeleton() {
 function actionItemsFor(
   item: QueueCallItem,
   onAction: (id: string, action: QueueAction) => void,
-  opts?: { isActive?: boolean; canMoveUp?: boolean; canMoveDown?: boolean; pauseDisabled?: boolean },
+  opts?: {
+    isActive?: boolean;
+    canMoveUp?: boolean;
+    canMoveDown?: boolean;
+    pauseDisabled?: boolean;
+    cancelDisabled?: boolean;
+  },
 ) {
   const isActive = opts?.isActive ?? item.status === "in_progress";
   const queuedLike = item.status === "queued" || item.status === "paused";
@@ -343,7 +352,7 @@ function actionItemsFor(
       label: "Cancel Call",
       icon: <Ban size={15} />,
       color: "#D14343",
-      disabled: item.status === "cancelled" || item.status === "completed",
+      disabled: opts?.cancelDisabled || item.status === "cancelled" || item.status === "completed",
       onClick: () => onAction(item.id, "cancel"),
     },
   ];
@@ -356,6 +365,8 @@ function QueueListRow({
   onAction,
   highlight,
   pauseDisabled,
+  cancelDisabled,
+  showActions = true,
 }: {
   item: QueueCallItem;
   canMoveUp: boolean;
@@ -363,14 +374,16 @@ function QueueListRow({
   onAction: (id: string, action: QueueAction) => void;
   highlight?: boolean;
   pauseDisabled?: boolean;
+  cancelDisabled?: boolean;
+  showActions?: boolean;
 }) {
   return (
     <Box
       sx={{
         display: "grid",
         gridTemplateColumns: {
-          xs: QUEUE_TABLE_COLUMNS_XS,
-          lg: QUEUE_TABLE_COLUMNS,
+          xs: showActions ? QUEUE_TABLE_COLUMNS_XS : QUEUE_TABLE_COLUMNS_XS_NO_ACTION,
+          lg: showActions ? QUEUE_TABLE_COLUMNS : QUEUE_TABLE_COLUMNS_NO_ACTION,
         },
         columnGap: 1.25,
         rowGap: 0.75,
@@ -437,13 +450,16 @@ function QueueListRow({
         <EstimateLabel estimate={item.estimate} />
       </Box>
 
-      <Box sx={{ justifySelf: "end" }}>
-        <ActionsMenu
-          name={item.patientName}
-          menuWidth={200}
-          items={actionItemsFor(item, onAction, { canMoveUp, canMoveDown, pauseDisabled })}
-        />
-      </Box>
+      {/* Action column is not shown for calls that are currently processing. */}
+      {showActions ? (
+        <Box sx={{ justifySelf: "end" }}>
+          <ActionsMenu
+            name={item.patientName}
+            menuWidth={200}
+            items={actionItemsFor(item, onAction, { canMoveUp, canMoveDown, pauseDisabled, cancelDisabled })}
+          />
+        </Box>
+      ) : null}
     </Box>
   );
 }
@@ -457,6 +473,7 @@ export function CallQueueWorkspace() {
   const [waitingPageSize, setWaitingPageSize] = useState(10);
   const [startOutboundCall, { isLoading: startingCall }] = useStartOutboundCallMutation();
   const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
+  const [cancelCall, { isLoading: cancellingCall }] = useCancelCallMutation();
   const [actionError, setActionError] = useState("");
 
   const processingQueryArgs = useMemo(
@@ -559,6 +576,13 @@ export function CallQueueWorkspace() {
         .catch((error) =>
           setActionError(getApiErrorMessage(error, paused ? "Could not pause this call." : "Could not unpause this call.")),
         );
+      return;
+    }
+    if (action === "cancel") {
+      setActionError("");
+      void cancelCall({ id })
+        .unwrap()
+        .catch((error) => setActionError(getApiErrorMessage(error, "Could not cancel this call.")));
     }
   }
 
@@ -702,7 +726,7 @@ export function CallQueueWorkspace() {
                 </Typography>
               ) : (
                 <>
-                  <QueueTableHeader />
+                  <QueueTableHeader showActions={false} />
                   {processing?.map((item) => (
                     <QueueListRow
                       key={item.id}
@@ -710,7 +734,9 @@ export function CallQueueWorkspace() {
                       canMoveUp={false}
                       canMoveDown={false}
                       highlight
+                      showActions={false}
                       pauseDisabled={pausingCall}
+                      cancelDisabled={cancellingCall}
                       onAction={onAction}
                     />
                   ))}
@@ -788,6 +814,7 @@ export function CallQueueWorkspace() {
                     canMoveUp={false}
                     canMoveDown={false}
                     pauseDisabled={pausingCall}
+                    cancelDisabled={cancellingCall}
                     onAction={onAction}
                   />
                 ))}
