@@ -14,8 +14,8 @@ import {
   Typography,
 } from "@mui/material";
 import {
-  ArrowDown,
-  ArrowUp,
+  // ArrowDown,
+  // ArrowUp,
   Ban,
   CirclePlay,
   Eye,
@@ -32,7 +32,7 @@ import {
   useGetCallSummaryQuery,
   useGetQueuedCallQueueQuery,
   useSetCallPausedMutation,
-  useStartOutboundCallMutation,
+  useTriggerCallMutation,
 } from "@/lib/api/callsApi";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { ActionsMenu } from "@/components/shared/ActionsMenu";
@@ -326,7 +326,7 @@ function actionItemsFor(
   },
 ) {
   const isActive = opts?.isActive ?? item.status === "in_progress";
-  const queuedLike = item.status === "queued" || item.status === "paused";
+  // const queuedLike = item.status === "queued" || item.status === "paused";
   return [
     {
       key: "start",
@@ -349,20 +349,20 @@ function actionItemsFor(
         ),
       onClick: () => onAction(item.id, "pause"),
     },
-    {
-      key: "move_up",
-      label: "Move Up",
-      icon: <ArrowUp size={15} />,
-      disabled: !queuedLike || opts?.canMoveUp === false,
-      onClick: () => onAction(item.id, "move_up"),
-    },
-    {
-      key: "move_down",
-      label: "Move Down",
-      icon: <ArrowDown size={15} />,
-      disabled: !queuedLike || opts?.canMoveDown === false,
-      onClick: () => onAction(item.id, "move_down"),
-    },
+    // {
+    //   key: "move_up",
+    //   label: "Move Up",
+    //   icon: <ArrowUp size={15} />,
+    //   disabled: !queuedLike || opts?.canMoveUp === false,
+    //   onClick: () => onAction(item.id, "move_up"),
+    // },
+    // {
+    //   key: "move_down",
+    //   label: "Move Down",
+    //   icon: <ArrowDown size={15} />,
+    //   disabled: !queuedLike || opts?.canMoveDown === false,
+    //   onClick: () => onAction(item.id, "move_down"),
+    // },
     {
       key: "details",
       label: "View Details",
@@ -495,7 +495,7 @@ export function CallQueueWorkspace() {
   const [processingPageSize, setProcessingPageSize] = useState(5);
   const [waitingTablePage, setWaitingTablePage] = useState(0);
   const [waitingPageSize, setWaitingPageSize] = useState(10);
-  const [startOutboundCall, { isLoading: startingCall }] = useStartOutboundCallMutation();
+  const [triggerCall, { isLoading: startingCall }] = useTriggerCallMutation();
   const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
   const [cancelCall, { isLoading: cancellingCall }] = useCancelCallMutation();
   const [actionError, setActionError] = useState("");
@@ -597,7 +597,7 @@ export function CallQueueWorkspace() {
     }
     if (action === "start") {
       setActionError("");
-      void startOutboundCall({ id })
+      void triggerCall({ id })
         .unwrap()
         .catch((error) => setActionError(getApiErrorMessage(error, "Could not start this call.")));
       return;

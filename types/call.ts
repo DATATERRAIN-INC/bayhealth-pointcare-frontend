@@ -2,6 +2,7 @@ export interface CallApiRecord {
   id: number | string;
   patient?: number | string;
   patient_name?: string;
+  doctor?: string;
   /** Why the patient is being called (service / care gap). */
   reason?: string;
   service_name?: string;
