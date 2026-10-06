@@ -14,7 +14,11 @@ export interface CallApiRecord {
   message_type?: string;
   communication_type?: string;
   status?: string;
+  is_paused?: boolean;
   paused?: boolean;
+  scheduled_at?: string | null;
+  schedule_kind?: string;
+  schedule_raw_time?: string;
   from_number?: string;
   to_number?: string;
   agent_id?: string;

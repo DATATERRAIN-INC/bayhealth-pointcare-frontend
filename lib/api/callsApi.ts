@@ -99,6 +99,7 @@ function mapQueueStatusFromApi(value: string | undefined): QueueStatus {
   if (status === "in_progress" || status === "ongoing" || status === "ringing") return "in_progress";
   if (status === "queued") return "queued";
   if (status === "paused") return "paused";
+  if (status === "scheduled") return "scheduled";
   if (status === "failed" || status === "not_attended") return "failed";
   if (status === "completed" || status === "complete" || status === "ended") return "completed";
   if (status === "cancelled" || status === "canceled") return "cancelled";
@@ -127,13 +128,15 @@ function mapQueueItem(record: CallApiRecord, position: number, status: QueueStat
         ? "active"
         : status === "paused"
           ? "on_hold"
-          : status === "failed"
-            ? "needs_retry"
-            : status === "completed"
-              ? "done"
-              : status === "cancelled"
-                ? "removed"
-                : estimateForQueuedPosition(position),
+          : status === "scheduled"
+            ? "scheduled"
+            : status === "failed"
+              ? "needs_retry"
+              : status === "completed"
+                ? "done"
+                : status === "cancelled"
+                  ? "removed"
+                  : estimateForQueuedPosition(position),
     queuedAt: record.created_at ?? record.started_at ?? null,
     startedAt: record.started_at ?? null,
     reason: reason || undefined,
@@ -162,7 +165,11 @@ function mapQueueCallsPage(response: CallsListResponse | CallApiRecord[]): InPro
   const pageSize = Array.isArray(response) ? Math.max(records.length, 1) : response.page_size ?? Math.max(records.length, 1);
   const start = Math.max(0, page - 1) * pageSize;
   const results = records.map((record, index) => {
-    const status = record.paused === true ? "paused" : mapQueueStatusFromApi(record.status);
+    const paused = record.is_paused === true || record.paused === true;
+    const scheduled =
+      !paused &&
+      (mapQueueStatusFromApi(record.status) === "scheduled" || Boolean(record.scheduled_at));
+    const status = paused ? "paused" : scheduled ? "scheduled" : mapQueueStatusFromApi(record.status);
     return mapQueueItem(record, start + index + 1, status);
   });
   const count = Array.isArray(response) ? records.length : response.count ?? results.length;
@@ -269,7 +276,7 @@ export const callsApi = createApi({
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
-          status: JSON.stringify(["queued", "paused"]),
+          status: JSON.stringify(["queued", "paused", "scheduled"]),
         });
         return `/calls/?${params.toString()}`;
       },

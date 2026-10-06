@@ -225,7 +225,14 @@ function actionItemsFor(
       key: "pause",
       label: item.status === "paused" ? "Unpause" : "Pause Call",
       icon: item.status === "paused" ? <CirclePlay size={15} /> : <Pause size={15} />,
-      disabled: opts?.pauseDisabled || !(isActive || item.status === "queued" || item.status === "paused"),
+      disabled:
+        opts?.pauseDisabled ||
+        !(
+          isActive ||
+          item.status === "queued" ||
+          item.status === "paused" ||
+          item.status === "scheduled"
+        ),
       onClick: () => onAction(item.id, "pause"),
     },
     {
