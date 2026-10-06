@@ -15,6 +15,7 @@ import {
 import { ChevronDown, Phone, UserRound, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AppBreadcrumbs } from "@/components/shared/AppBreadcrumbs";
+import { AppDatePicker } from "@/components/shared/AppDatePicker";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import {
   buildPatientSaveBody,
@@ -23,7 +24,7 @@ import {
   useUpdatePatientMutation,
 } from "@/lib/api/patientsApi";
 import { parseAuthApiError } from "@/lib/api/authErrors";
-import { formatDobInput, isFutureDate, parseDobInput, toIsoDate } from "@/data/gapPatients";
+import { isFutureDate, parseIsoDate, toIsoDate } from "@/data/gapPatients";
 import {
   getPhoneLengthRule,
   phoneSamplePlaceholder,
@@ -34,10 +35,21 @@ import { elevation } from "@/lib/theme/tokens";
 
 const COUNTRY_CODES = ["+1", "+44", "+91", "+61", "+81"] as const;
 
-const initialForm = {
+type AddPatientForm = {
+  firstName: string;
+  lastName: string;
+  dob: Date | null;
+  address: string;
+  doctor: string;
+  serviceName: string;
+  countryCode: string;
+  phoneNumber: string;
+};
+
+const initialForm: AddPatientForm = {
   firstName: "",
   lastName: "",
-  dob: "",
+  dob: null,
   address: "",
   doctor: "",
   serviceName: "",
@@ -65,12 +77,6 @@ const labelSx = {
   fontWeight: 600,
   color: "text.primary",
 } as const;
-
-function isoToDobInput(isoDate: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate.trim());
-  if (!match) return isoDate;
-  return `${match[2]}/${match[3]}/${match[1]}`;
-}
 
 function FieldLabel({ children }: { children: string }) {
   return (
@@ -235,7 +241,7 @@ function AddPatientPage() {
     setForm({
       firstName: patient.firstName,
       lastName: patient.lastName,
-      dob: isoToDobInput(patient.dateOfBirth),
+      dob: parseIsoDate(patient.dateOfBirth),
       address: patient.address,
       doctor: patient.doctor,
       serviceName: patient.serviceName || "",
@@ -244,24 +250,24 @@ function AddPatientPage() {
     });
   }
 
-  function updateField(field: keyof typeof form, value: string) {
-    const nextValue = field === "dob" ? formatDobInput(value) : value;
-    setForm((current) => ({ ...current, [field]: nextValue }));
+  function updateField(field: Exclude<keyof AddPatientForm, "dob">, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
     setFormError("");
+  }
 
-    if (field === "dob") {
-      const parsed = parseDobInput(nextValue);
-      if (!nextValue || nextValue.length < 10) setDobError("");
-      else if (!parsed) setDobError("Enter a valid date as MM/DD/YYYY.");
-      else if (isFutureDate(parsed)) setDobError("Date of birth can't be in the future.");
-      else setDobError("");
+  function updateDob(next: Date | null) {
+    setForm((current) => ({ ...current, dob: next }));
+    setFormError("");
+    if (!next) {
+      setDobError("");
+      return;
     }
+    if (isFutureDate(next)) setDobError("Date of birth can't be in the future.");
+    else setDobError("");
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const parsedDob = parseDobInput(form.dob);
-
     if (!form.firstName.trim() || !form.lastName.trim() || !form.address.trim() || !form.doctor) {
       setFormError("First name, last name, address, and doctor are required.");
       return;
@@ -278,11 +284,11 @@ function AddPatientPage() {
       setFormError(phoneError);
       return;
     }
-    if (!parsedDob) {
+    if (!form.dob) {
       setDobError("Enter a valid date as MM/DD/YYYY.");
       return;
     }
-    if (isFutureDate(parsedDob)) {
+    if (isFutureDate(form.dob)) {
       setDobError("Date of birth can't be in the future.");
       return;
     }
@@ -291,7 +297,7 @@ function AddPatientPage() {
       firstName: form.firstName,
       lastName: form.lastName,
       address: form.address,
-      dobIso: toIsoDate(parsedDob),
+      dobIso: toIsoDate(form.dob),
       doctor: form.doctor,
       countryCode: form.countryCode,
       phoneNumber: form.phoneNumber,
@@ -378,19 +384,6 @@ function AddPatientPage() {
               : "Create a patient profile for outreach and follow-up calls."}
           </Typography>
         </Box>
-        <Box
-          sx={{
-            alignSelf: { xs: "flex-start", sm: "center" },
-            px: 1.25,
-            py: 0.6,
-            borderRadius: "999px",
-            bgcolor: "#EEF6FD",
-            color: "#23649E",
-            fontWeight: 600,
-          }}
-        >
-          {isEdit ? "Editing" : "New patient"}
-        </Box>
       </Stack>
 
       <Box
@@ -442,18 +435,13 @@ function AddPatientPage() {
             </Box>
             <Box>
               <FieldLabel>Date of birth</FieldLabel>
-              <TextField
-                fullWidth
-                placeholder="MM/DD/YYYY"
+              <AppDatePicker
                 value={form.dob}
+                onChange={updateDob}
+                disableFuture
                 error={Boolean(dobError)}
-                onChange={(event) => updateField("dob", event.target.value)}
-                slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 10 } }}
-                sx={fieldSx}
+                helperText={dobError || undefined}
               />
-              {dobError ? (
-                <Typography sx={{ mt: 0.5, color: "#D92D20" }}>{dobError}</Typography>
-              ) : null}
             </Box>
             <Box>
               <FieldLabel>Doctor</FieldLabel>
