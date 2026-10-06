@@ -29,6 +29,7 @@ import {
   callQueueSubscriptionOptions,
   useGetCallQueueQuery,
   useCancelCallMutation,
+  useGetCallSummaryQuery,
   useGetQueuedCallQueueQuery,
   useSetCallPausedMutation,
   useStartOutboundCallMutation,
@@ -38,11 +39,7 @@ import { ActionsMenu } from "@/components/shared/ActionsMenu";
 import { TablePager } from "@/components/shared/TablePager";
 import { Button } from "@/components/ui/Button";
 import { elevation } from "@/lib/theme/tokens";
-import type {
-  ProcessingEstimate,
-  QueueCallItem,
-  QueueStatus,
-} from "@/types/queue";
+import type { QueueCallItem, QueueStatus } from "@/types/queue";
 import {
   processingEstimateMeta,
   queueStatusMeta,
@@ -85,10 +82,35 @@ function StatusChip({ status }: { status: QueueStatus }) {
   );
 }
 
-function EstimateLabel({ estimate }: { estimate: ProcessingEstimate }) {
+function formatRemaining(scheduledAt: string, now: number): string {
+  const target = new Date(scheduledAt).getTime();
+  if (Number.isNaN(target)) return processingEstimateMeta.scheduled;
+  const deltaMs = target - now;
+  if (Math.abs(deltaMs) < 60_000) return deltaMs > 0 ? "in <1m" : "Due now";
+  const absMinutes = Math.floor(Math.abs(deltaMs) / 60_000);
+  const hours = Math.floor(absMinutes / 60);
+  const minutes = absMinutes % 60;
+  let span: string;
+  if (hours > 48) {
+    const days = Math.floor(hours / 24);
+    const leftoverHours = hours % 24;
+    const dayLabel = days === 1 ? "1 day" : `${days} days`;
+    span = leftoverHours > 0 ? `${dayLabel} ${leftoverHours}h` : dayLabel;
+  } else {
+    span = hours > 0 ? (minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`) : `${minutes}m`;
+  }
+  return deltaMs > 0 ? `in ${span}` : `${span} overdue`;
+}
+
+function estimateText(item: QueueCallItem, now: number): string {
+  if (item.status === "scheduled" && item.scheduledAt) return formatRemaining(item.scheduledAt, now);
+  return processingEstimateMeta[item.estimate];
+}
+
+function EstimateLabel({ item, now }: { item: QueueCallItem; now: number }) {
   return (
     <Typography sx={{ fontSize: "var(--font-size-body)", color: "#5C6478", fontWeight: 500 }}>
-      {processingEstimateMeta[estimate]}
+      {estimateText(item, now)}
     </Typography>
   );
 }
@@ -96,16 +118,16 @@ function EstimateLabel({ estimate }: { estimate: ProcessingEstimate }) {
 function QueueStatusLine({
   queuedCount,
   inProgressCount,
-  failedCount,
+  pausedCount,
 }: {
   queuedCount: number;
   inProgressCount: number;
-  failedCount: number;
+  pausedCount: number;
 }) {
   const parts = [
     { label: "queued", value: queuedCount, color: "#5C6478" },
     { label: "in progress", value: inProgressCount, color: "#1D5F9A" },
-    { label: "failed", value: failedCount, color: failedCount > 0 ? "#D14343" : "#5C6478" },
+    { label: "paused", value: pausedCount, color: pausedCount > 0 ? "#B45309" : "#5C6478" },
   ] as const;
 
   return (
@@ -148,7 +170,7 @@ function QueueStatusLine({
               borderRadius: "50%",
               bgcolor: part.color,
               flexShrink: 0,
-              opacity: part.value === 0 && part.label === "failed" ? 0.35 : 1,
+              opacity: part.value === 0 && part.label === "paused" ? 0.35 : 1,
             }}
           />
           <Typography
@@ -360,6 +382,7 @@ function actionItemsFor(
 
 function QueueListRow({
   item,
+  now,
   canMoveUp,
   canMoveDown,
   onAction,
@@ -369,6 +392,7 @@ function QueueListRow({
   showActions = true,
 }: {
   item: QueueCallItem;
+  now: number;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onAction: (id: string, action: QueueAction) => void;
@@ -447,7 +471,7 @@ function QueueListRow({
         <StatusChip status={item.status} />
       </Box>
       <Box sx={{ display: { xs: "none", lg: "block" } }}>
-        <EstimateLabel estimate={item.estimate} />
+        <EstimateLabel item={item} now={now} />
       </Box>
 
       {/* Action column is not shown for calls that are currently processing. */}
@@ -496,6 +520,11 @@ export function CallQueueWorkspace() {
   } = useGetCallQueueQuery(processingQueryArgs, callQueueSubscriptionOptions);
 
   const {
+    data: summary,
+    refetch: refetchSummary,
+  } = useGetCallSummaryQuery(undefined, callQueueSubscriptionOptions);
+
+  const {
     data: queuedPage,
     isLoading: waitingLoading,
     isFetching: waitingFetching,
@@ -518,7 +547,7 @@ export function CallQueueWorkspace() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      await Promise.all([refetchProcessing(), refetchWaiting()]);
+      await Promise.all([refetchProcessing(), refetchWaiting(), refetchSummary()]);
     } finally {
       setRefreshing(false);
     }
@@ -528,8 +557,9 @@ export function CallQueueWorkspace() {
   const processingCount = inProgressPage?.count ?? 0;
   const waiting = queuedPage?.results ?? [];
   const waitingCount = queuedPage?.count ?? 0;
-  const failedCount = 0;
-  const queuedCount = waitingCount;
+  const queuedCount = summary?.queued ?? 0;
+  const inProgressCount = summary?.in_progress ?? 0;
+  const pausedCount = summary?.paused ?? 0;
 
   const processingMaxPage = Math.max(0, Math.ceil(processingCount / processingPageSize) - 1);
   if (processingPage > processingMaxPage) {
@@ -540,6 +570,11 @@ export function CallQueueWorkspace() {
   if (waitingTablePage > waitingMaxPage) {
     setWaitingTablePage(waitingMaxPage);
   }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!detailsItem) return;
@@ -598,12 +633,12 @@ export function CallQueueWorkspace() {
             Call queue
           </Typography>
           <Typography sx={{ mt: 0.4, color: "text.secondary" }}>
-            Manage outbound calls waiting to be placed, currently processing, or failed.
+            Manage outbound calls waiting to be placed, currently processing, or paused.
           </Typography>
           <QueueStatusLine
             queuedCount={queuedCount}
-            inProgressCount={processingCount}
-            failedCount={failedCount}
+            inProgressCount={inProgressCount}
+            pausedCount={pausedCount}
           />
         </Box>
         <IconButton
@@ -731,6 +766,7 @@ export function CallQueueWorkspace() {
                     <QueueListRow
                       key={item.id}
                       item={item}
+                      now={now}
                       canMoveUp={false}
                       canMoveDown={false}
                       highlight
@@ -811,6 +847,7 @@ export function CallQueueWorkspace() {
                   <QueueListRow
                     key={item.id}
                     item={item}
+                    now={now}
                     canMoveUp={false}
                     canMoveDown={false}
                     pauseDisabled={pausingCall}
@@ -875,7 +912,7 @@ export function CallQueueWorkspace() {
                 </Typography>
                 <StatusChip status={detailsItem.status} />
               </Stack>
-              <DetailRow label="Estimate" value={processingEstimateMeta[detailsItem.estimate]} />
+              <DetailRow label="Estimate" value={estimateText(detailsItem, now)} />
               <DetailRow label="Waiting" value={formatWait(detailsItem.queuedAt, now)} />
             </Stack>
           ) : null}

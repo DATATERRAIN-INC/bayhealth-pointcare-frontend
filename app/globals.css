@@ -148,12 +148,16 @@ table.data-table .text-small,
   outline-offset: 2px;
 }
 
-/* MUI fields/buttons already provide focus styles — avoid double rings */
+/* MUI fields/buttons already provide focus styles — avoid double rings.
+   Date sections are contenteditable; a focus ring on them draws a vertical line between MM, DD, and YYYY. */
 .MuiInputBase-input:focus-visible,
 .MuiOutlinedInput-input:focus-visible,
 .MuiSelect-select:focus-visible,
 .MuiButtonBase-root:focus-visible,
-.MuiChip-root:focus-visible {
+.MuiChip-root:focus-visible,
+.MuiPickersSectionList-root:focus-visible,
+.MuiPickersSectionList-sectionContent:focus-visible,
+.MuiPickersInputBase-sectionContent:focus-visible {
   outline: none;
   outline-offset: 0;
 }
