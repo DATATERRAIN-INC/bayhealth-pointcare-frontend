@@ -16,7 +16,7 @@ const CALL_STATUS_META: Record<CallStatus, { label: string; color: string; bg: s
   in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
   completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
   not_attended: { label: "Not attended", color: "#D14343", bg: "#FDECEC" },
-  callback: { label: "Callback", color: "#B45309", bg: "#FEF3C7" },
+  callback: { label: "Scheduled", color: "#B45309", bg: "#FEF3C7" },
 };
 
 export function parseCallStatus(value: unknown): CallStatus | null {
@@ -41,6 +41,14 @@ export function callStatusMeta(status: CallStatus | null | undefined): { label: 
   if (!status) return { label: "Unknown", color: "#8B93A7", bg: "#F0F2F5" };
   return CALL_STATUS_META[status];
 }
+
+export const CALL_STATUS_FILTER_OPTIONS: { value: CallStatus | "all"; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  ...(Object.entries(CALL_STATUS_META) as [CallStatus, { label: string }][]).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
 
 export function CallStatusChip({ status }: { status: CallStatus | null | undefined }) {
   if (!status) {

@@ -20,7 +20,12 @@ import {
   ViewPatientDialog,
 } from "@/components/patients/ViewPatientDialog";
 import { PatientTranscriptDialog } from "@/components/patients/PatientTranscriptDialog";
-import { PatientCallStatus } from "@/components/patients/PatientCallStatus";
+import {
+  CALL_STATUS_FILTER_OPTIONS,
+  CallStatusChip,
+  type CallStatus,
+} from "@/components/shared/CallStatusChip";
+import { ColumnHeaderFilter } from "@/components/shared/ColumnHeaderFilter";
 import { RecordActions, type ActionsMenuItem } from "@/components/shared/RecordActions";
 import { Button } from "@/components/ui/Button";
 import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
@@ -225,6 +230,8 @@ function PatientRowActions({
 function buildPatientColumns(
   onNotify: (message: string) => void,
   onViewDetail: (patient: PatientRecord) => void,
+  statusFilter: CallStatus | "all",
+  onStatusFilterChange: (next: CallStatus | "all") => void,
 ): GridColDef<PatientRecord>[] {
   return [
     {
@@ -316,9 +323,21 @@ function buildPatientColumns(
       field: "callStatus",
       headerName: "Status",
       flex: 0.9,
-      minWidth: 140,
+      minWidth: 150,
       sortable: false,
-      renderCell: (params) => <PatientCallStatus patient={params.row} />,
+      filterable: false,
+      disableColumnMenu: true,
+      headerAlign: "left",
+      align: "left",
+      renderHeader: () => (
+        <ColumnHeaderFilter
+          label="Status"
+          value={statusFilter}
+          options={CALL_STATUS_FILTER_OPTIONS}
+          onChange={onStatusFilterChange}
+        />
+      ),
+      renderCell: (params) => <CallStatusChip status={params.row.callStatus} />,
     },
     {
       field: "source",
@@ -370,10 +389,12 @@ export function Patient() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(PATIENTS_PER_PAGE);
+  const [statusFilter, setStatusFilter] = useState<CallStatus | "all">("all");
   const { data, isLoading, isError, isFetching } = useGetPatientsQuery({
     page: page + 1,
     pageSize,
     search: search || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
   });
   const patients = data?.results ?? [];
   const totalCount = data?.count ?? 0;
@@ -386,9 +407,13 @@ export function Patient() {
   const closeBlockSuccess = useCallback(() => setBlockSuccess(""), []);
   const onActionNotify = useCallback((message: string) => setBlockSuccess(message), []);
   const onViewDetail = useCallback((patient: PatientRecord) => setDetailPatient(patient), []);
+  const onStatusFilterChange = useCallback((next: CallStatus | "all") => {
+    setStatusFilter(next);
+    setPage(0);
+  }, []);
   const columns = useMemo(
-    () => buildPatientColumns(onActionNotify, onViewDetail),
-    [onActionNotify, onViewDetail],
+    () => buildPatientColumns(onActionNotify, onViewDetail, statusFilter, onStatusFilterChange),
+    [onActionNotify, onViewDetail, statusFilter, onStatusFilterChange],
   );
 
   useEffect(() => {
@@ -614,7 +639,7 @@ export function Patient() {
                 {patient.address}
               </Typography>
               <Stack direction="row" spacing={0.75} sx={{ mt: 0.7, alignItems: "center", flexWrap: "wrap" }}>
-                <PatientCallStatus patient={patient} />
+                <CallStatusChip status={patient.callStatus} />
                 <Box
                   component="span"
                   sx={{
@@ -661,6 +686,9 @@ export function Patient() {
             }}
             pageSizeOptions={[10, 20, 50]}
             disableRowSelectionOnClick
+            disableColumnMenu
+            disableColumnFilter
+            disableColumnSelector
             rowHeight={64}
             columnHeaderHeight={48}
             slots={{
@@ -684,6 +712,15 @@ export function Patient() {
               },
               "& .MuiDataGrid-columnHeader, & .MuiDataGrid-cell": {
                 px: 2,
+              },
+              "& .MuiDataGrid-columnHeader[data-field='callStatus'] .MuiDataGrid-columnHeaderTitleContainer": {
+                width: "100%",
+                maxWidth: "100%",
+              },
+              "& .MuiDataGrid-columnHeader[data-field='callStatus'] .MuiDataGrid-columnHeaderTitleContainerContent": {
+                width: "100%",
+                maxWidth: "100%",
+                flex: 1,
               },
               "& .MuiDataGrid-columnHeader[data-field='source'], & .MuiDataGrid-cell[data-field='source']": {
                 pr: 2.5,
