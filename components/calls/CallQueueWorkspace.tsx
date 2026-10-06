@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Dialog,
   DialogActions,
@@ -27,6 +28,7 @@ import {
   callQueueSubscriptionOptions,
   useGetCallQueueQuery,
   useGetQueuedCallQueueQuery,
+  useSetCallPausedMutation,
   useStartOutboundCallMutation,
 } from "@/lib/api/callsApi";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -207,7 +209,7 @@ function QueueTableHeader() {
 function actionItemsFor(
   item: QueueCallItem,
   onAction: (id: string, action: QueueAction) => void,
-  opts?: { isActive?: boolean; canMoveUp?: boolean; canMoveDown?: boolean },
+  opts?: { isActive?: boolean; canMoveUp?: boolean; canMoveDown?: boolean; pauseDisabled?: boolean },
 ) {
   const isActive = opts?.isActive ?? item.status === "in_progress";
   const queuedLike = item.status === "queued" || item.status === "paused";
@@ -221,9 +223,9 @@ function actionItemsFor(
     },
     {
       key: "pause",
-      label: "Pause Call",
-      icon: <Pause size={15} />,
-      disabled: !(isActive || item.status === "queued"),
+      label: item.status === "paused" ? "Unpause" : "Pause Call",
+      icon: item.status === "paused" ? <CirclePlay size={15} /> : <Pause size={15} />,
+      disabled: opts?.pauseDisabled || !(isActive || item.status === "queued" || item.status === "paused"),
       onClick: () => onAction(item.id, "pause"),
     },
     {
@@ -263,12 +265,14 @@ function QueueListRow({
   canMoveDown,
   onAction,
   highlight,
+  pauseDisabled,
 }: {
   item: QueueCallItem;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onAction: (id: string, action: QueueAction) => void;
   highlight?: boolean;
+  pauseDisabled?: boolean;
 }) {
   return (
     <Box
@@ -347,7 +351,7 @@ function QueueListRow({
         <ActionsMenu
           name={item.patientName}
           menuWidth={200}
-          items={actionItemsFor(item, onAction, { canMoveUp, canMoveDown })}
+          items={actionItemsFor(item, onAction, { canMoveUp, canMoveDown, pauseDisabled })}
         />
       </Box>
     </Box>
@@ -362,6 +366,8 @@ export function CallQueueWorkspace() {
   const [waitingTablePage, setWaitingTablePage] = useState(0);
   const [waitingPageSize, setWaitingPageSize] = useState(10);
   const [startOutboundCall, { isLoading: startingCall }] = useStartOutboundCallMutation();
+  const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
+  const [actionError, setActionError] = useState("");
 
   const processingQueryArgs = useMemo(
     () => ({ page: processingPage + 1, pageSize: processingPageSize }),
@@ -372,19 +378,13 @@ export function CallQueueWorkspace() {
     [waitingTablePage, waitingPageSize],
   );
 
-  const [pollWhileActive, setPollWhileActive] = useState(false);
-  const queueSubscriptionOptions = useMemo(
-    () => callQueueSubscriptionOptions(pollWhileActive),
-    [pollWhileActive],
-  );
-
   const {
     data: inProgressPage,
     isLoading: processingLoading,
     isError: processingIsError,
     error: processingError,
     refetch: refetchProcessing,
-  } = useGetCallQueueQuery(processingQueryArgs, queueSubscriptionOptions);
+  } = useGetCallQueueQuery(processingQueryArgs, callQueueSubscriptionOptions);
 
   const {
     data: queuedPage,
@@ -392,7 +392,7 @@ export function CallQueueWorkspace() {
     isError: waitingIsError,
     error: waitingError,
     refetch: refetchWaiting,
-  } = useGetQueuedCallQueueQuery(waitingQueryArgs, queueSubscriptionOptions);
+  } = useGetQueuedCallQueueQuery(waitingQueryArgs, callQueueSubscriptionOptions);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -412,11 +412,6 @@ export function CallQueueWorkspace() {
   const waitingCount = queuedPage?.count ?? 0;
   const failedCount = 0;
   const queuedCount = waitingCount;
-
-  useEffect(() => {
-    const active = processingCount > 0 || waitingCount > 0;
-    setPollWhileActive((current) => (current === active ? current : active));
-  }, [processingCount, waitingCount]);
 
   useEffect(() => {
     if (!detailsItem) return;
@@ -448,7 +443,21 @@ export function CallQueueWorkspace() {
       return;
     }
     if (action === "start") {
-      void startOutboundCall({ id }).unwrap().catch(() => undefined);
+      setActionError("");
+      void startOutboundCall({ id })
+        .unwrap()
+        .catch((error) => setActionError(getApiErrorMessage(error, "Could not start this call.")));
+      return;
+    }
+    if (action === "pause") {
+      const item = processing?.find((row) => row.id === id) ?? waiting.find((row) => row.id === id);
+      const paused = item?.status !== "paused";
+      setActionError("");
+      void setCallPaused({ id, paused })
+        .unwrap()
+        .catch((error) =>
+          setActionError(getApiErrorMessage(error, paused ? "Could not pause this call." : "Could not unpause this call.")),
+        );
     }
   }
 
@@ -498,6 +507,12 @@ export function CallQueueWorkspace() {
           <RefreshCw size={16} strokeWidth={2} />
         </IconButton>
       </Stack>
+
+      {actionError ? (
+        <Alert severity="error" onClose={() => setActionError("")}>
+          {actionError}
+        </Alert>
+      ) : null}
 
       {queueIsEmpty ? (
         <Box
@@ -595,6 +610,7 @@ export function CallQueueWorkspace() {
                       canMoveUp={false}
                       canMoveDown={false}
                       highlight
+                      pauseDisabled={pausingCall}
                       onAction={onAction}
                     />
                   ))}
@@ -667,6 +683,7 @@ export function CallQueueWorkspace() {
                     item={item}
                     canMoveUp={false}
                     canMoveDown={false}
+                    pauseDisabled={pausingCall}
                     onAction={onAction}
                   />
                 ))}

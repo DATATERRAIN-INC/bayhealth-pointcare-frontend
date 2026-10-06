@@ -2,6 +2,9 @@ export interface CallApiRecord {
   id: number | string;
   patient?: number | string;
   patient_name?: string;
+  /** Why the patient is being called (service / care gap). */
+  reason?: string;
+  service_name?: string;
   decline_reason?: string;
   retell_call_id?: string;
   flow?: string;
@@ -11,6 +14,7 @@ export interface CallApiRecord {
   message_type?: string;
   communication_type?: string;
   status?: string;
+  paused?: boolean;
   from_number?: string;
   to_number?: string;
   agent_id?: string;
