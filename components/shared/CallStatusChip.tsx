@@ -52,6 +52,14 @@ export function callStatusMeta(status: CallStatus | null | undefined): { label: 
   return CALL_STATUS_META[status];
 }
 
+export const CALL_STATUS_FILTER_OPTIONS: { value: CallStatus | "all"; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  ...(Object.entries(CALL_STATUS_META) as [CallStatus, { label: string }][]).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
+
 export function CallStatusChip({ status }: { status: CallStatus | null | undefined }) {
   if (!status) {
     return (

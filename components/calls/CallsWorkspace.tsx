@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import {
@@ -479,6 +479,8 @@ export function CallsWorkspace() {
               getRowId={(row) => row.id}
               disableRowSelectionOnClick
               disableColumnMenu
+              disableColumnFilter
+              disableColumnSelector
               hideFooter
               rowHeight={64}
               columnHeaderHeight={48}

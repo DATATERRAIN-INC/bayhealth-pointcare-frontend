@@ -172,6 +172,7 @@ export interface PatientListQuery {
   page: number;
   pageSize: number;
   search?: string;
+  status?: string;
 }
 
 export interface PatientList {
@@ -247,12 +248,13 @@ export const patientsApi = createApi({
   tagTypes: ["Patient"],
   endpoints: (builder) => ({
     getPatients: builder.query<PatientList, PatientListQuery>({
-      query: ({ page, pageSize, search }) => ({
+      query: ({ page, pageSize, search, status }) => ({
         url: "/patients/",
         params: {
           page,
           page_size: pageSize,
           ...(search ? { search } : {}),
+          ...(status ? { call_status: status } : {}),
         },
       }),
       transformResponse: (response: unknown): PatientList => {
