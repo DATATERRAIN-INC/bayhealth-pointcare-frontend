@@ -1,6 +1,17 @@
 import type { CallStatus } from "@/components/shared/CallStatusChip";
+import type { OutreachChannel } from "@/data/gapCalls";
+import { formatPhoneNumber } from "@/constants/phone";
 
 export type PatientSource = "Manual" | "Excel";
+
+export interface PatientTryAttempt {
+  id: string;
+  datetime: string | null;
+  callType: string;
+  channel: OutreachChannel;
+  status: CallStatus | null;
+  retellCallId: string;
+}
 
 export interface PatientRecord {
   id: string;
@@ -17,6 +28,53 @@ export interface PatientRecord {
   serviceName: string;
   blocked: boolean;
   callStatus: CallStatus | null;
+  /** Latest outreach id when the API includes it. */
+  lastCallId: string | null;
+  lastCallChannel: OutreachChannel | null;
+  retellCallId: string;
+  hasTranscript: boolean;
+  /** Latest call duration in seconds from the patients API. */
+  durationSeconds: number | null;
+  /** Outreach attempt count from `patient_tries.count`. */
+  patientTries: number;
+  /** Timed outreach attempts from `patient_tries.attempts`. */
+  tryAttempts: PatientTryAttempt[];
+}
+
+const TRY_TIME_ZONE = "America/New_York";
+
+/** Formats an attempt timestamp for UI, e.g. "Oct 6, 2026 at 4:10 AM". */
+export function formatPatientTryTime(iso: string | null | undefined): string {
+  if (!iso) return "Time unavailable";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  const day = new Intl.DateTimeFormat("en-US", {
+    timeZone: TRY_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: TRY_TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+  return `${day} at ${time}`;
+}
+
+/** Formats call duration for UI, e.g. "10s" or "1m 5s". */
+export function formatCallDuration(seconds: number | null | undefined): string {
+  if (seconds == null || seconds < 0) return "—";
+  const mins = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60);
+  if (mins === 0) return `${remainder}s`;
+  return `${mins}m ${remainder}s`;
+}
+
+export function patientOutreachLabel(patient: PatientRecord): string | null {
+  if (!patient.lastCallId) return null;
+  const channel = patient.lastCallChannel ?? "call";
+  return channel === "text" ? `Text #${patient.lastCallId}` : `Call #${patient.lastCallId}`;
 }
 
 export const DOCTORS = ["Dr. Alan Brooks", "Dr. Priya Shah"] as const;
@@ -31,13 +89,9 @@ export function formatPatientDob(isoDate: string): string {
   });
 }
 
-/** Formats country code + national number, e.g. "+1 3025550101". */
+/** Formats a phone number for UI display only, e.g. "(256) 264-5996". Never use for API bodies. */
 export function formatPatientPhone(countryCode: string, phoneNumber: string): string {
-  const phone = phoneNumber.trim();
-  if (!phone) return "—";
-  const code = countryCode.trim() || "+1";
-  const normalized = code.startsWith("+") ? code : `+${code}`;
-  return `${normalized} ${phone}`;
+  return formatPhoneNumber(phoneNumber, countryCode);
 }
 
 export function parseIsoDate(value: string): Date | null {

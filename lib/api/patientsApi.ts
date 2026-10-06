@@ -1,7 +1,8 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
-import type { CreatePatientRequest, PatientApiRecord } from "@/types/patient";
-import type { PatientRecord, PatientSource } from "@/data/gapPatients";
+import type { CreatePatientRequest, PatientApiRecord, PatientTryAttemptApi } from "@/types/patient";
+import type { PatientRecord, PatientSource, PatientTryAttempt } from "@/data/gapPatients";
+import type { OutreachChannel } from "@/data/gapCalls";
 import { parseCallStatus } from "@/components/shared/CallStatusChip";
 import { normalizeCountryCode, sanitizePhoneDigits } from "@/lib/phone";
 
@@ -52,6 +53,121 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
+function firstString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function mapPatientChannel(...values: unknown[]): OutreachChannel | null {
+  for (const value of values) {
+    const normalized = String(value ?? "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) continue;
+    if (normalized === "text" || normalized === "sms" || normalized === "message" || normalized === "messaging") {
+      return "text";
+    }
+    if (normalized === "call" || normalized === "voice" || normalized === "phone" || normalized === "outbound") {
+      return "call";
+    }
+  }
+  return null;
+}
+
+function pickLastCall(record: PatientApiRecord) {
+  const nested = record.last_call && typeof record.last_call === "object" ? record.last_call : null;
+  const lastCallId = firstString(
+    record.call_id,
+    record.last_call_id,
+    record.latest_call_id,
+    record.call_number,
+    nested?.id,
+    nested?.call_id,
+  );
+  const lastCallChannel = mapPatientChannel(
+    record.channel,
+    record.call_channel,
+    record.last_call_channel,
+    nested?.channel,
+  );
+  const retellCallId = firstString(record.retell_call_id, nested?.retell_call_id);
+  const durationSeconds = parseDurationSeconds(record.duration_seconds ?? nested?.duration_seconds);
+  const hasTranscript =
+    Boolean(record.has_transcript) ||
+    Boolean(nested?.has_transcript);
+  return {
+    lastCallId: lastCallId || null,
+    lastCallChannel,
+    retellCallId,
+    hasTranscript,
+    durationSeconds,
+  };
+}
+
+function parseDurationSeconds(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+    const parsed = Number(value);
+    return parsed >= 0 ? parsed : null;
+  }
+  return null;
+}
+
+function mapAttemptChannel(callType: unknown): OutreachChannel {
+  const raw = String(callType ?? "")
+    .trim()
+    .toLowerCase();
+  if (raw.includes("sms") || raw.includes("text") || raw === "message") return "text";
+  return "call";
+}
+
+function mapTryAttempt(raw: PatientTryAttemptApi, index: number): PatientTryAttempt {
+  return {
+    id: firstString(raw.id) || `attempt-${index}`,
+    datetime: typeof raw.datetime === "string" && raw.datetime.trim() ? raw.datetime.trim() : null,
+    callType: String(raw.call_type ?? "").trim() || "outbound",
+    channel: mapAttemptChannel(raw.call_type),
+    status: parseCallStatus(raw.status),
+    retellCallId: firstString(raw.retell_call_id),
+  };
+}
+
+function mapPatientTries(value: unknown): { count: number; attempts: PatientTryAttempt[] } {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return { count: Math.floor(value), attempts: [] };
+  }
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+    const parsed = Number(value);
+    return { count: parsed >= 0 ? Math.floor(parsed) : 0, attempts: [] };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { count: 0, attempts: [] };
+  }
+
+  const record = value as { count?: unknown; attempts?: unknown };
+  const rawAttempts = Array.isArray(record.attempts) ? (record.attempts as PatientTryAttemptApi[]) : [];
+  const attempts = rawAttempts
+    .map((item, index) => mapTryAttempt(item, index))
+    .sort((a, b) => {
+      const aTime = a.datetime ? new Date(a.datetime).getTime() : 0;
+      const bTime = b.datetime ? new Date(b.datetime).getTime() : 0;
+      return aTime - bTime;
+    });
+
+  const countValue = record.count;
+  const count =
+    typeof countValue === "number" && Number.isFinite(countValue) && countValue >= 0
+      ? Math.floor(countValue)
+      : typeof countValue === "string" && countValue.trim() && Number.isFinite(Number(countValue))
+        ? Math.max(0, Math.floor(Number(countValue)))
+        : attempts.length;
+
+  return { count: Math.max(count, attempts.length), attempts };
+}
+
 export interface PatientListQuery {
   page: number;
   pageSize: number;
@@ -89,10 +205,14 @@ function patientCount(response: unknown, fallback: number): number {
 export function mapApiPatient(record: PatientApiRecord): PatientRecord {
   const id = String(record.id);
   const fullName =
+    record.full_name?.trim() ||
     record.name?.trim() ||
     [record.first_name, record.last_name].filter(Boolean).join(" ").trim() ||
     "Unnamed patient";
   const split = splitName(fullName);
+  const lastCall = pickLastCall(record);
+  const callStatus = parseCallStatus(record.call_status);
+  const tries = mapPatientTries(record.patient_tries ?? record.tries);
 
   return {
     id,
@@ -104,10 +224,20 @@ export function mapApiPatient(record: PatientApiRecord): PatientRecord {
     doctor: record.doctor,
     source: mapSource(record.source),
     countryCode: record.country_code?.trim() || "+1",
-    phoneNumber: record.phone_number?.trim() || "",
+    phoneNumber: sanitizePhoneDigits(
+      String(record.phone_number ?? ""),
+      record.country_code?.trim() || "+1",
+    ),
     serviceName: record.service_name?.trim() || record.reason_for_call?.trim() || "",
     blocked: asBlocked(record.is_blocked),
-    callStatus: parseCallStatus(record.call_status),
+    callStatus,
+    lastCallId: lastCall.lastCallId,
+    lastCallChannel: lastCall.lastCallChannel ?? (callStatus ? "call" : null),
+    retellCallId: lastCall.retellCallId,
+    hasTranscript: lastCall.hasTranscript,
+    durationSeconds: lastCall.durationSeconds,
+    patientTries: tries.count,
+    tryAttempts: tries.attempts,
   };
 }
 

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Alert,
   Box,
@@ -14,12 +13,13 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Ban, Eye, Pencil, Phone, Plus, Search, ShieldCheck, Upload } from "lucide-react";
+import { Ban, Eye, FileText, MessageSquare, Phone, Plus, Search, ShieldCheck, Upload } from "lucide-react";
 import {
   actionErrorMessage,
   CallInitiatingDialog,
   ViewPatientDialog,
 } from "@/components/patients/ViewPatientDialog";
+import { PatientTranscriptDialog } from "@/components/patients/PatientTranscriptDialog";
 import { CallStatusChip } from "@/components/shared/CallStatusChip";
 import { RecordActions, type ActionsMenuItem } from "@/components/shared/RecordActions";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +27,7 @@ import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { TablePager } from "@/components/shared/TablePager";
 import { useStartOutboundCallMutation } from "@/lib/api/callsApi";
+import { useStartOutboundSmsMutation } from "@/lib/api/smsApi";
 import {
   useGetPatientsQuery,
   useSetPatientBlockedStatusMutation,
@@ -78,15 +79,17 @@ function BlockedChip() {
 
 function PatientRowActions({
   patient,
-  onBlocked,
+  onNotify,
+  onViewDetail,
 }: {
   patient: PatientRecord;
-  onBlocked: (message: string) => void;
+  onNotify: (message: string) => void;
+  onViewDetail: (patient: PatientRecord) => void;
 }) {
-  const router = useRouter();
   const [setBlocked, { isLoading: isBlocking }] = useSetPatientBlockedStatusMutation();
   const [startOutboundCall] = useStartOutboundCallMutation();
-  const [viewOpen, setViewOpen] = useState(false);
+  const [startOutboundSms, { isLoading: isSendingSms }] = useStartOutboundSmsMutation();
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const [callPhase, setCallPhase] = useState<CallUiPhase>("idle");
 
@@ -95,7 +98,7 @@ function PatientRowActions({
     setActionError("");
     try {
       await setBlocked({ id: patient.id, is_blocked: blocking }).unwrap();
-      onBlocked(blocking ? "Patient blocked successfully." : "Patient unblocked successfully.");
+      onNotify(blocking ? "Patient blocked successfully." : "Patient unblocked successfully.");
     } catch (error) {
       setActionError(actionErrorMessage(error, "Could not update this patient. Please try again."));
     }
@@ -119,18 +122,22 @@ function PatientRowActions({
     }
   }
 
+  async function runOutboundSms() {
+    setActionError("");
+    try {
+      await startOutboundSms({ id: patient.id }).unwrap();
+      onNotify("Outbound text sent successfully.");
+    } catch (error) {
+      setActionError(actionErrorMessage(error, "Could not send the outbound text. Please try again."));
+    }
+  }
+
   const items: ActionsMenuItem[] = [
     {
       key: "view",
-      label: "View",
+      label: "View detail",
       icon: <Eye size={16} />,
-      onClick: () => setViewOpen(true),
-    },
-    {
-      key: "edit",
-      label: "Edit",
-      icon: <Pencil size={16} />,
-      onClick: () => router.push(`/patients/add?id=${encodeURIComponent(patient.id)}&edit=true`),
+      onClick: () => onViewDetail(patient),
     },
     {
       key: "call",
@@ -141,6 +148,25 @@ function PatientRowActions({
         void runOutboundCall();
       },
     },
+    {
+      key: "text",
+      label: "Text",
+      icon: <MessageSquare size={16} />,
+      disabled: isSendingSms || patient.blocked,
+      onClick: () => {
+        void runOutboundSms();
+      },
+    },
+    ...(patient.callStatus === "completed"
+      ? [
+          {
+            key: "transcript",
+            label: "Transcript",
+            icon: <FileText size={16} />,
+            onClick: () => setTranscriptOpen(true),
+          } satisfies ActionsMenuItem,
+        ]
+      : []),
     {
       key: "block",
       label: patient.blocked ? "Unblock" : "Block",
@@ -155,7 +181,11 @@ function PatientRowActions({
 
   return (
     <RecordActions name={patient.name} items={items}>
-      <ViewPatientDialog patient={patient} open={viewOpen} onClose={() => setViewOpen(false)} />
+      <PatientTranscriptDialog
+        patient={patient}
+        open={transcriptOpen}
+        onClose={() => setTranscriptOpen(false)}
+      />
       {callPhase !== "idle" ? (
         <CallInitiatingDialog
           open
@@ -192,7 +222,10 @@ function PatientRowActions({
   );
 }
 
-function buildPatientColumns(onBlocked: (message: string) => void): GridColDef<PatientRecord>[] {
+function buildPatientColumns(
+  onNotify: (message: string) => void,
+  onViewDetail: (patient: PatientRecord) => void,
+): GridColDef<PatientRecord>[] {
   return [
     {
       field: "actions",
@@ -203,7 +236,9 @@ function buildPatientColumns(onBlocked: (message: string) => void): GridColDef<P
       disableColumnMenu: true,
       align: "center",
       headerAlign: "center",
-      renderCell: (params) => <PatientRowActions patient={params.row} onBlocked={onBlocked} />,
+      renderCell: (params) => (
+        <PatientRowActions patient={params.row} onNotify={onNotify} onViewDetail={onViewDetail} />
+      ),
     },
     {
       field: "name",
@@ -213,8 +248,24 @@ function buildPatientColumns(onBlocked: (message: string) => void): GridColDef<P
       renderCell: (params) => (
         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", minWidth: 0 }}>
           <Typography
+            component="button"
+            type="button"
             noWrap
-            sx={{ fontWeight: 600, fontSize: "var(--font-size-body)", color: params.row.blocked ? "#8B93A7" : "text.primary" }}
+            onClick={() => onViewDetail(params.row)}
+            sx={{
+              p: 0,
+              border: 0,
+              bgcolor: "transparent",
+              fontFamily: "inherit",
+              fontWeight: 600,
+              fontSize: "var(--font-size-body)",
+              color: params.row.blocked ? "#8B93A7" : "primary.main",
+              cursor: "pointer",
+              textAlign: "left",
+              textDecoration: "underline",
+              textUnderlineOffset: "2px",
+              "&:hover": { color: params.row.blocked ? "#667085" : "#1C4E8A" },
+            }}
           >
             {params.row.name}
           </Typography>
@@ -330,10 +381,15 @@ export function Patient() {
   const [importError, setImportError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [blockSuccess, setBlockSuccess] = useState("");
+  const [detailPatient, setDetailPatient] = useState<PatientRecord | null>(null);
   const closeUploadSuccess = useCallback(() => setUploadSuccess(null), []);
   const closeBlockSuccess = useCallback(() => setBlockSuccess(""), []);
-  const onPatientBlocked = useCallback((message: string) => setBlockSuccess(message), []);
-  const columns = useMemo(() => buildPatientColumns(onPatientBlocked), [onPatientBlocked]);
+  const onActionNotify = useCallback((message: string) => setBlockSuccess(message), []);
+  const onViewDetail = useCallback((patient: PatientRecord) => setDetailPatient(patient), []);
+  const columns = useMemo(
+    () => buildPatientColumns(onActionNotify, onViewDetail),
+    [onActionNotify, onViewDetail],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(query.trim()), 300);
@@ -480,6 +536,11 @@ export function Patient() {
         message={blockSuccess || "Patient blocked successfully."}
         onClose={closeBlockSuccess}
       />
+      <ViewPatientDialog
+        patient={detailPatient}
+        open={Boolean(detailPatient)}
+        onClose={() => setDetailPatient(null)}
+      />
 
       <Stack spacing={1.25} sx={{ display: { xs: "flex", md: "none" }, flex: 1, minHeight: 0, overflowY: "auto", p: 1.5 }}>
         {isLoading ? (
@@ -509,11 +570,34 @@ export function Patient() {
               <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
                 <Box sx={{ minWidth: 0 }}>
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-                    <Typography sx={{ fontWeight: 700, color: "text.primary", lineHeight: 1.3 }}>{patient.name}</Typography>
+                    <Typography
+                      component="button"
+                      type="button"
+                      onClick={() => onViewDetail(patient)}
+                      sx={{
+                        p: 0,
+                        border: 0,
+                        bgcolor: "transparent",
+                        fontFamily: "inherit",
+                        fontWeight: 700,
+                        color: "primary.main",
+                        lineHeight: 1.3,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        textDecoration: "underline",
+                        textUnderlineOffset: "2px",
+                      }}
+                    >
+                      {patient.name}
+                    </Typography>
                     {patient.blocked ? <BlockedChip /> : null}
                   </Stack>
                 </Box>
-                <PatientRowActions patient={patient} onBlocked={setBlockSuccess} />
+                <PatientRowActions
+                  patient={patient}
+                  onNotify={setBlockSuccess}
+                  onViewDetail={onViewDetail}
+                />
               </Stack>
               <Typography
                 sx={{

@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Skeleton,
   Stack,
   Typography,
 } from "@mui/material";
@@ -206,6 +207,88 @@ function QueueTableHeader() {
   );
 }
 
+function QueueSkeletonRows({ count = 5 }: { count?: number }) {
+  const bone = { bgcolor: "#E9EEF4", borderRadius: "6px" } as const;
+  return (
+    <>
+      <QueueTableHeader />
+      {Array.from({ length: count }, (_, index) => (
+        <Box
+          key={`queue-skeleton-${index}`}
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: QUEUE_TABLE_COLUMNS_XS,
+              lg: QUEUE_TABLE_COLUMNS,
+            },
+            columnGap: 1.25,
+            alignItems: "center",
+            px: 2,
+            py: 1.45,
+            borderBottom: "1px solid #F0F2F5",
+            "&:last-child": { borderBottom: 0 },
+          }}
+        >
+          <Skeleton variant="rounded" animation="wave" width={22} height={14} sx={bone} />
+          <Box sx={{ minWidth: 0 }}>
+            <Skeleton variant="rounded" animation="wave" width="68%" height={15} sx={bone} />
+            <Skeleton
+              variant="rounded"
+              animation="wave"
+              width="42%"
+              height={12}
+              sx={{ ...bone, mt: 0.7, display: { xs: "none", lg: "block" } }}
+            />
+          </Box>
+          <Skeleton
+            variant="rounded"
+            animation="wave"
+            width="72%"
+            height={14}
+            sx={{ ...bone, display: { xs: "none", lg: "block" } }}
+          />
+          <Skeleton
+            variant="rounded"
+            animation="wave"
+            width={78}
+            height={22}
+            sx={{ ...bone, borderRadius: "999px", display: { xs: "none", lg: "block" } }}
+          />
+          <Skeleton
+            variant="rounded"
+            animation="wave"
+            width={64}
+            height={14}
+            sx={{ ...bone, display: { xs: "none", lg: "block" } }}
+          />
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <Skeleton variant="circular" animation="wave" width={28} height={28} sx={{ bgcolor: "#E9EEF4" }} />
+          </Box>
+        </Box>
+      ))}
+    </>
+  );
+}
+
+function QueuePagerSkeleton() {
+  return (
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: 2,
+        minHeight: 52,
+        px: 2,
+        borderTop: "1px solid #EEF0F4",
+      }}
+    >
+      <Skeleton variant="rounded" animation="wave" width={120} height={16} sx={{ bgcolor: "#E9EEF4", borderRadius: "6px" }} />
+      <Skeleton variant="rounded" animation="wave" width={72} height={16} sx={{ bgcolor: "#E9EEF4", borderRadius: "6px" }} />
+    </Stack>
+  );
+}
+
 function actionItemsFor(
   item: QueueCallItem,
   onAction: (id: string, action: QueueAction) => void,
@@ -381,6 +464,8 @@ export function CallQueueWorkspace() {
   const {
     data: inProgressPage,
     isLoading: processingLoading,
+    isFetching: processingFetching,
+    isUninitialized: processingUninitialized,
     isError: processingIsError,
     error: processingError,
     refetch: refetchProcessing,
@@ -389,12 +474,21 @@ export function CallQueueWorkspace() {
   const {
     data: queuedPage,
     isLoading: waitingLoading,
+    isFetching: waitingFetching,
+    isUninitialized: waitingUninitialized,
     isError: waitingIsError,
     error: waitingError,
     refetch: refetchWaiting,
   } = useGetQueuedCallQueueQuery(waitingQueryArgs, callQueueSubscriptionOptions);
 
   const [refreshing, setRefreshing] = useState(false);
+
+  const showProcessingSkeleton =
+    !processingIsError &&
+    (processingUninitialized || processingLoading || (processingFetching && !inProgressPage));
+  const showWaitingSkeleton =
+    !waitingIsError &&
+    (waitingUninitialized || waitingLoading || (waitingFetching && !queuedPage));
 
   async function refreshQueue() {
     if (refreshing) return;
@@ -413,6 +507,16 @@ export function CallQueueWorkspace() {
   const failedCount = 0;
   const queuedCount = waitingCount;
 
+  const processingMaxPage = Math.max(0, Math.ceil(processingCount / processingPageSize) - 1);
+  if (processingPage > processingMaxPage) {
+    setProcessingPage(processingMaxPage);
+  }
+
+  const waitingMaxPage = Math.max(0, Math.ceil(waitingCount / waitingPageSize) - 1);
+  if (waitingTablePage > waitingMaxPage) {
+    setWaitingTablePage(waitingMaxPage);
+  }
+
   useEffect(() => {
     if (!detailsItem) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -422,20 +526,10 @@ export function CallQueueWorkspace() {
   const queueIsEmpty =
     processingCount === 0 &&
     waitingCount === 0 &&
-    !processingLoading &&
-    !waitingLoading &&
+    !showProcessingSkeleton &&
+    !showWaitingSkeleton &&
     !processingIsError &&
     !waitingIsError;
-
-  useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(processingCount / processingPageSize) - 1);
-    if (processingPage > maxPage) setProcessingPage(maxPage);
-  }, [processingCount, processingPage, processingPageSize]);
-
-  useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(waitingCount / waitingPageSize) - 1);
-    if (waitingTablePage > maxPage) setWaitingTablePage(maxPage);
-  }, [waitingCount, waitingTablePage, waitingPageSize]);
 
   function onAction(id: string, action: QueueAction) {
     if (action === "details") {
@@ -583,19 +677,18 @@ export function CallQueueWorkspace() {
                   </Typography>
                 </Stack>
                 <Typography sx={{ fontSize: "var(--font-size-body)", color: "#5C6478" }}>
-                  {processingLoading && !inProgressPage
-                    ? "Loading"
-                    : `${processingCount} active`}
+                  {showProcessingSkeleton ? "Loading" : `${processingCount} active`}
                 </Typography>
               </Stack>
               {processingIsError ? (
                 <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#D14343", fontSize: "var(--font-size-body)" }}>
                   {getApiErrorMessage(processingError, "Could not load calls that are currently processing.")}
                 </Typography>
-              ) : processingLoading && !processing?.length ? (
-                <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
-                  Loading active calls…
-                </Typography>
+              ) : showProcessingSkeleton ? (
+                <>
+                  <QueueSkeletonRows count={Math.min(processingPageSize, 5)} />
+                  <QueuePagerSkeleton />
+                </>
               ) : !processing?.length ? (
                 <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
                   No calls are on the line right now.
@@ -620,7 +713,10 @@ export function CallQueueWorkspace() {
                     rowCount={processingCount}
                     pageSizeOptions={[5, 10]}
                     onPageChange={setProcessingPage}
-                    onPageSizeChange={setProcessingPageSize}
+                    onPageSizeChange={(next) => {
+                      setProcessingPageSize(next);
+                      setProcessingPage(0);
+                    }}
                   />
                 </>
               )}
@@ -650,7 +746,7 @@ export function CallQueueWorkspace() {
                 Waiting & needs attention
               </Typography>
               <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
-                {waitingLoading && !queuedPage
+                {showWaitingSkeleton
                   ? "Loading"
                   : waitingCount === 0
                     ? "None waiting"
@@ -662,10 +758,11 @@ export function CallQueueWorkspace() {
               <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#D14343", fontSize: "var(--font-size-body)" }}>
                 {getApiErrorMessage(waitingError, "Could not load calls waiting in the queue.")}
               </Typography>
-            ) : waitingLoading && waiting.length === 0 ? (
-              <Typography sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}>
-                Loading waiting calls…
-              </Typography>
+            ) : showWaitingSkeleton ? (
+              <>
+                <QueueSkeletonRows count={Math.min(waitingPageSize, 5)} />
+                <QueuePagerSkeleton />
+              </>
             ) : waitingCount === 0 ? (
               <Typography
                 sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}
@@ -693,7 +790,10 @@ export function CallQueueWorkspace() {
                   rowCount={waitingCount}
                   pageSizeOptions={[5, 10, 20]}
                   onPageChange={setWaitingTablePage}
-                  onPageSizeChange={setWaitingPageSize}
+                  onPageSizeChange={(next) => {
+                    setWaitingPageSize(next);
+                    setWaitingTablePage(0);
+                  }}
                 />
               </>
             )}

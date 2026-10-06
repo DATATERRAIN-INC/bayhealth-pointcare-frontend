@@ -2,10 +2,17 @@
 
 import { Box, Typography } from "@mui/material";
 
-export type CallStatus = "queued" | "in_progress" | "completed" | "not_attended" | "callback";
+export type CallStatus =
+  | "queued"
+  | "paused"
+  | "in_progress"
+  | "completed"
+  | "not_attended"
+  | "callback";
 
 const CALL_STATUS_META: Record<CallStatus, { label: string; color: string; bg: string }> = {
   queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
+  paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
   in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
   completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
   not_attended: { label: "Not attended", color: "#D14343", bg: "#FDECEC" },
@@ -19,6 +26,7 @@ export function parseCallStatus(value: unknown): CallStatus | null {
     .replace(/[\s-]+/g, "_");
   if (
     status === "queued" ||
+    status === "paused" ||
     status === "in_progress" ||
     status === "completed" ||
     status === "not_attended" ||
@@ -27,6 +35,11 @@ export function parseCallStatus(value: unknown): CallStatus | null {
     return status;
   }
   return null;
+}
+
+export function callStatusMeta(status: CallStatus | null | undefined): { label: string; color: string; bg: string } {
+  if (!status) return { label: "Unknown", color: "#8B93A7", bg: "#F0F2F5" };
+  return CALL_STATUS_META[status];
 }
 
 export function CallStatusChip({ status }: { status: CallStatus | null | undefined }) {

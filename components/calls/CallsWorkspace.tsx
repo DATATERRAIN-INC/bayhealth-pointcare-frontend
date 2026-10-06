@@ -1,23 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Skeleton,
   Stack,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
-import { MessageSquareText, Phone, X } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { AppTable } from "@/components/shared/AppTable";
+import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { MessageSquareText, Phone } from "lucide-react";
+import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
 import { TablePager } from "@/components/shared/TablePager";
 import {
-  channelMeta,
-  statusMeta,
+  ChannelChip,
+  DESKTOP_PANEL_HEIGHT,
+  StatusChip,
+  StatusLabel,
+  TranscriptBody,
+  TranscriptPanel,
+} from "@/components/calls/CallTranscriptPanel";
+import {
   type OutreachCall,
   type OutreachChannel,
   type OutreachStatus,
@@ -51,211 +53,6 @@ const surface = {
   borderRadius: "10px",
   boxShadow: elevation.floatingPanel,
 } as const;
-
-const DESKTOP_PANEL_HEIGHT = 640;
-
-const statusChip: Record<OutreachStatus, { bg: string; color: string }> = {
-  completed: { bg: "#E5F6EC", color: "#178A45" },
-  in_progress: { bg: "#E7F1FB", color: "#2F6FED" },
-  not_attended: { bg: "#FDECEC", color: "#D14343" },
-};
-
-function StatusChip({ status }: { status: OutreachStatus }) {
-  const chip = statusChip[status];
-  const label = status === "in_progress" ? "In progress" : statusMeta[status].label;
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        px: 1.1,
-        py: 0.35,
-        borderRadius: "999px",
-        bgcolor: chip.bg,
-        color: chip.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 600,
-        lineHeight: 1.3,
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}
-    >
-      {label}
-    </Box>
-  );
-}
-
-function ChannelChip({ channel }: { channel: OutreachChannel }) {
-  const meta = channelMeta[channel];
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        px: 1.1,
-        py: 0.35,
-        borderRadius: "999px",
-        bgcolor: meta.bg,
-        color: meta.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 600,
-        lineHeight: 1.3,
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}
-    >
-      {meta.label}
-    </Box>
-  );
-}
-
-function StatusLabel({ status }: { status: OutreachStatus }) {
-  const meta = statusMeta[status];
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 1,
-        color: meta.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 500,
-        whiteSpace: "nowrap",
-        lineHeight: 1.4,
-      }}
-    >
-      <Box
-        component="span"
-        sx={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          bgcolor: meta.color,
-          flexShrink: 0,
-        }}
-      />
-      {meta.label}
-    </Box>
-  );
-}
-
-function transcriptText(call: OutreachCall): string {
-  return call.messages
-    .map((line) => (line.time ? `${line.speaker} · ${line.time}\n${line.text}` : `${line.speaker}\n${line.text}`))
-    .join("\n\n");
-}
-
-function copyWithTextarea(value: string) {
-  const area = document.createElement("textarea");
-  area.value = value;
-  area.setAttribute("readonly", "");
-  area.style.position = "fixed";
-  area.style.top = "0";
-  area.style.left = "-9999px";
-  document.body.appendChild(area);
-  area.focus();
-  area.select();
-  const copied = document.execCommand("copy");
-  document.body.removeChild(area);
-  if (!copied) {
-    throw new Error("Copy failed");
-  }
-}
-
-async function copyText(value: string) {
-  if (navigator.clipboard?.writeText && document.hasFocus()) {
-    try {
-      await navigator.clipboard.writeText(value);
-      return;
-    } catch {
-      // Clipboard can reject when the document is not focused.
-    }
-  }
-  copyWithTextarea(value);
-}
-
-function TranscriptBody({
-  call,
-  loading = false,
-  error = false,
-}: {
-  call: OutreachCall;
-  loading?: boolean;
-  error?: boolean;
-}) {
-  if (call.messages.length === 0) {
-    const message = loading
-      ? call.channel === "text"
-        ? "Loading messages…"
-        : "Loading transcript…"
-      : error
-        ? call.channel === "text"
-          ? "Could not load this text thread."
-          : "Could not load this transcript."
-        : call.channel === "call" && call.status === "in_progress"
-          ? "Transcript available after the call ends."
-          : call.channel === "text"
-            ? "No messages for this text."
-            : "No transcript for this call.";
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: 160,
-          px: 2,
-        }}
-      >
-        <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", textAlign: "center" }}>
-          {message}
-        </Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Stack spacing={1.75}>
-      {call.messages.map((line, index) => {
-        const fromPatient = line.speaker === "Patient";
-        return (
-          <Box
-            key={`${index}-${line.speaker}`}
-            sx={{ alignSelf: fromPatient ? "flex-end" : "flex-start", maxWidth: "90%" }}
-          >
-            <Typography
-              sx={{
-                mb: 0.5,
-                fontSize: "var(--font-size-body)",
-                fontWeight: 500,
-                color: "#8B93A7",
-                textAlign: fromPatient ? "right" : "left",
-              }}
-            >
-              {line.time ? `${line.speaker} · ${line.time}` : line.speaker}
-            </Typography>
-            <Box
-              sx={{
-                px: 1.5,
-                py: 1.15,
-                borderRadius: "10px",
-                bgcolor: fromPatient ? "#F3F4F6" : "#EAF3FB",
-                color: "text.primary",
-                fontSize: "var(--font-size-body)",
-                lineHeight: 1.45,
-              }}
-            >
-              {line.text}
-            </Box>
-          </Box>
-        );
-      })}
-    </Stack>
-  );
-}
 
 function TypeFilterTabs({
   items,
@@ -430,10 +227,8 @@ export function CallsWorkspace() {
   const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("all");
   const [selectedId, setSelectedId] = useState("");
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
-  const [tablePending, setTablePending] = useState(true);
   const { data, isUninitialized, isLoading, isFetching, isError } = useGetCallsQuery({
     page: page + 1,
     pageSize,
@@ -441,20 +236,9 @@ export function CallsWorkspace() {
     channel: channelFilter === "all" ? undefined : channelFilter,
   });
 
-  useEffect(() => {
-    if (!tablePending) return;
-    if (isFetching || isLoading) return;
-    setTablePending(false);
-  }, [tablePending, isFetching, isLoading]);
+  const showSkeleton = !isError && (isUninitialized || isLoading || isFetching);
 
-  const showSkeleton =
-    !isError && (tablePending || isUninitialized || isLoading || isFetching);
-
-  function beginTableFetch() {
-    setTablePending(true);
-  }
-
-  const apiRows = data?.results ?? [];
+  const apiRows = useMemo(() => data?.results ?? [], [data?.results]);
   // Client-side channel filter as a fallback if the API ignores `channel`.
   const paged = useMemo(() => {
     if (channelFilter === "all") return apiRows;
@@ -496,17 +280,6 @@ export function CallsWorkspace() {
 
   const viewed = withTranscript(selected);
 
-  async function copyTranscript() {
-    if (!viewed || viewed.messages.length === 0) return;
-    try {
-      await copyText(transcriptText(viewed));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  }
-
   function itemLabel(call: OutreachCall): string {
     return call.channel === "text" ? `Text #${call.callNumber}` : `Call #${call.callNumber}`;
   }
@@ -527,49 +300,107 @@ export function CallsWorkspace() {
     return "No activity in this status.";
   }
 
-  function skeletonRows() {
-    const bone = { bgcolor: "#E9EEF4", borderRadius: "6px" } as const;
-    return Array.from({ length: pageSize }, (_, rowIndex) => (
-      <TableRow key={`call-skeleton-${rowIndex}`}>
-        <TableCell>
-          <Skeleton variant="rounded" animation="wave" width="62%" height={16} sx={bone} />
-          <Skeleton variant="rounded" animation="wave" width="38%" height={12} sx={{ ...bone, mt: 0.75 }} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="rounded" animation="wave" width={64} height={22} sx={{ ...bone, borderRadius: "999px" }} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="rounded" animation="wave" width={96} height={22} sx={{ ...bone, borderRadius: "999px" }} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="rounded" animation="wave" width={72} height={16} sx={bone} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="rounded" animation="wave" width={64} height={16} sx={bone} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="rounded" animation="wave" width={52} height={16} sx={bone} />
-        </TableCell>
-      </TableRow>
-    ));
-  }
-
-  function emptyRow(colSpan: number) {
-    return (
-      <TableRow>
-        <TableCell
-          colSpan={colSpan}
-          sx={{
-            py: "40px !important",
-            color: isError ? "#D92D20" : "#8B93A7",
-            textAlign: "center",
-          }}
-        >
-          {emptyMessage()}
-        </TableCell>
-      </TableRow>
-    );
-  }
+  const columns = useMemo<GridColDef<OutreachCall>[]>(
+    () => [
+      {
+        field: "patientName",
+        headerName: "Patient",
+        flex: 1.4,
+        minWidth: 180,
+        sortable: false,
+        renderCell: (params) => (
+          <Box sx={{ minWidth: 0, py: 0.5 }}>
+            <Typography noWrap sx={{ fontWeight: 600, color: "text.primary", fontSize: "var(--font-size-body)", lineHeight: 1.3 }}>
+              {params.row.patientName}
+            </Typography>
+            <Typography noWrap sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", mt: 0.15 }}>
+              {itemLabel(params.row)}
+            </Typography>
+          </Box>
+        ),
+      },
+      {
+        field: "channel",
+        headerName: "Type",
+        flex: 0.7,
+        minWidth: 100,
+        sortable: false,
+        renderCell: (params) => <ChannelChip channel={params.row.channel} />,
+      },
+      {
+        field: "status",
+        headerName: "Status",
+        flex: 0.9,
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => <StatusLabel status={params.row.status} />,
+      },
+      {
+        field: "started",
+        headerName: "Started",
+        flex: 0.8,
+        minWidth: 110,
+        sortable: false,
+        renderCell: (params) => (
+          <Typography sx={{ fontSize: "var(--font-size-body)", color: "text.primary", whiteSpace: "nowrap" }}>
+            {params.row.started}
+          </Typography>
+        ),
+      },
+      {
+        field: "duration",
+        headerName: "Duration",
+        flex: 0.7,
+        minWidth: 100,
+        sortable: false,
+        renderCell: (params) => (
+          <Typography sx={{ fontSize: "var(--font-size-body)", color: "text.primary", whiteSpace: "nowrap" }}>
+            {params.row.duration}
+          </Typography>
+        ),
+      },
+      {
+        field: "transcript",
+        headerName: "Transcript",
+        flex: 0.9,
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => {
+          const label = transcriptLabel(params.row);
+          const isLink = label === "Viewing" || label === "View";
+          return (
+            <Typography
+              component={isLink ? "button" : "span"}
+              type={isLink ? "button" : undefined}
+              onClick={
+                isLink
+                  ? () => {
+                      setSelectedId(params.row.id);
+                    }
+                  : undefined
+              }
+              sx={{
+                p: 0,
+                border: 0,
+                bgcolor: "transparent",
+                fontFamily: "inherit",
+                fontSize: "var(--font-size-body)",
+                fontWeight: isLink ? 600 : 500,
+                color: isLink ? "primary.main" : "#8B93A7",
+                cursor: isLink ? "pointer" : "default",
+                textAlign: "left",
+              }}
+            >
+              {label}
+            </Typography>
+          );
+        },
+      },
+    ],
+    // itemLabel/transcriptLabel close over selected; refresh when selection changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedId],
+  );
 
   return (
     <Stack spacing={2}>
@@ -603,7 +434,6 @@ export function CallsWorkspace() {
           items={channelFilters}
           value={channelFilter}
           onChange={(next) => {
-            beginTableFetch();
             setChannelFilter(next);
             setPage(0);
             setSelectedId("");
@@ -635,97 +465,85 @@ export function CallsWorkspace() {
             status={filter}
             statusCounts={filterCounts}
             onStatusChange={(next) => {
-              beginTableFetch();
               setFilter(next);
               setPage(0);
               setSelectedId("");
             }}
           />
 
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-            <AppTable
-              sx={{
-                width: "100%",
-                tableLayout: "fixed",
-              }}
-            >
-              <TableHead>
-                <TableRow>
-                  {["Patient", "Type", "Status", "Started", "Duration", "Transcript"].map((heading) => (
-                    <TableCell key={heading}>
-                      {heading}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {showSkeleton
-                  ? skeletonRows()
-                  : paged.length === 0
-                  ? emptyRow(6)
-                  : paged.map((call) => {
-                  const active = call.id === selected?.id;
-                  const label = transcriptLabel(call);
-                  const isLink = label === "Viewing" || label === "View";
-                  return (
-                    <TableRow
-                      key={call.id}
-                      hover
+          <Box sx={{ flex: 1, minHeight: 0 }}>
+            <DataGrid
+              rows={isError ? [] : paged}
+              columns={columns}
+              loading={showSkeleton}
+              getRowId={(row) => row.id}
+              disableRowSelectionOnClick
+              disableColumnMenu
+              hideFooter
+              rowHeight={64}
+              columnHeaderHeight={48}
+              getRowClassName={(params) => (params.id === selectedId ? "calls-row--selected" : "")}
+              slots={{
+                noRowsOverlay: () => (
+                  <Stack sx={{ height: "100%", alignItems: "center", justifyContent: "center", px: 2 }}>
+                    <Typography
                       sx={{
-                        bgcolor: active ? "#F3F8FD" : "transparent",
-                        boxShadow: active ? "inset 3px 0 0 #2F72B9" : "none",
-                        "&:last-child td": { borderBottom: 0 },
-                        "&:hover td": { bgcolor: active ? "#F3F8FD" : "#F8FAFC" },
+                        fontSize: "var(--font-size-body)",
+                        color: isError ? "#D92D20" : "#8B93A7",
+                        textAlign: "center",
                       }}
                     >
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 600, color: "text.primary", fontSize: "var(--font-size-body)" }}>
-                          {call.patientName}
-                        </Typography>
-                        <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", mt: 0.15 }}>
-                          {itemLabel(call)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <ChannelChip channel={call.channel} />
-                      </TableCell>
-                      <TableCell>
-                        <StatusLabel status={call.status} />
-                      </TableCell>
-                      <TableCell sx={{ color: "text.primary", whiteSpace: "nowrap" }}>{call.started}</TableCell>
-                      <TableCell sx={{ color: "text.primary", whiteSpace: "nowrap" }}>{call.duration}</TableCell>
-                      <TableCell>
-                        <Typography
-                          component={isLink ? "button" : "span"}
-                          type={isLink ? "button" : undefined}
-                          onClick={
-                            isLink
-                              ? () => {
-                                  setSelectedId(call.id);
-                                  setCopied(false);
-                                }
-                              : undefined
-                          }
-                          sx={{
-                            p: 0,
-                            border: 0,
-                            bgcolor: "transparent",
-                            fontFamily: "inherit",
-                            fontSize: "var(--font-size-body)",
-                            fontWeight: isLink ? 600 : 500,
-                            color: isLink ? "primary.main" : "#8B93A7",
-                            cursor: isLink ? "pointer" : "default",
-                            textAlign: "left",
-                          }}
-                        >
-                          {label}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </AppTable>
+                      {emptyMessage()}
+                    </Typography>
+                  </Stack>
+                ),
+              }}
+              sx={{
+                border: 0,
+                width: "100%",
+                height: "100%",
+                fontSize: "var(--font-size-body)",
+                "& .MuiDataGrid-main": { minHeight: 0 },
+                "& .MuiDataGrid-virtualScroller": { overflowY: "auto" },
+                "& .MuiDataGrid-columnHeaders": {
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  bgcolor: TABLE_HEADER_COLOR,
+                },
+                "& .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeader": {
+                  bgcolor: TABLE_HEADER_COLOR,
+                },
+                "& .MuiDataGrid-columnHeader, & .MuiDataGrid-cell": {
+                  px: 2,
+                },
+                "& .MuiDataGrid-columnHeaderTitle": {
+                  fontWeight: 650,
+                  fontSize: "var(--font-size-body)",
+                  color: "text.primary",
+                },
+                "& .MuiDataGrid-cell": {
+                  borderColor: "#E9EDF2",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: "var(--font-size-body)",
+                  color: "text.primary",
+                },
+                "& .MuiDataGrid-row:hover": {
+                  bgcolor: "#F8FAFC",
+                },
+                "& .calls-row--selected": {
+                  bgcolor: "#F3F8FD",
+                  boxShadow: "inset 3px 0 0 #2F72B9",
+                },
+                "& .calls-row--selected:hover": {
+                  bgcolor: "#F3F8FD",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  display: "none",
+                },
+              }}
+            />
           </Box>
           {showSkeleton ? (
             <Stack direction="row" sx={{ justifyContent: "flex-end", alignItems: "center", gap: 2, minHeight: 52, px: 2, borderTop: "1px solid #EEF0F4" }}>
@@ -738,11 +556,9 @@ export function CallsWorkspace() {
               pageSize={pageSize}
               rowCount={rowCount}
               onPageChange={(next) => {
-                beginTableFetch();
                 setPage(next);
               }}
               onPageSizeChange={(next) => {
-                beginTableFetch();
                 setPageSize(next);
                 setPage(0);
               }}
@@ -755,8 +571,6 @@ export function CallsWorkspace() {
             call={viewed}
             loading={transcriptLoading && viewed?.retellCallId === transcriptCall?.retellCallId}
             error={transcriptError}
-            copied={copied}
-            onCopy={() => void copyTranscript()}
             onClose={() => setSelectedId("")}
           />
         ) : null}
@@ -777,7 +591,6 @@ export function CallsWorkspace() {
             value={filter}
             counts={filterCounts}
             onChange={(next) => {
-              beginTableFetch();
               setFilter(next);
               setPage(0);
               setMobileOpenId(null);
@@ -889,11 +702,9 @@ export function CallsWorkspace() {
               pageSize={pageSize}
               rowCount={rowCount}
               onPageChange={(next) => {
-                beginTableFetch();
                 setPage(next);
               }}
               onPageSizeChange={(next) => {
-                beginTableFetch();
                 setPageSize(next);
                 setPage(0);
               }}
@@ -902,166 +713,5 @@ export function CallsWorkspace() {
         ) : null}
       </Stack>
     </Stack>
-  );
-}
-
-function TranscriptPanel({
-  call,
-  loading = false,
-  error = false,
-  copied,
-  onCopy,
-  onClose,
-}: {
-  call: OutreachCall | undefined;
-  loading?: boolean;
-  error?: boolean;
-  copied: boolean;
-  onCopy: () => void;
-  onClose: () => void;
-}) {
-  if (!call) {
-    return (
-      <Box
-        sx={{
-          ...surface,
-          height: DESKTOP_PANEL_HEIGHT,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: "1px solid #F0F2F5" }}>
-          <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", letterSpacing: "-0.01em" }}>
-            Transcript
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            px: 2.25,
-            py: 2,
-          }}
-        >
-          <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", textAlign: "center" }}>
-            Select a call to view its transcript.
-          </Typography>
-        </Box>
-        <Stack
-          direction="row"
-          sx={{
-            alignItems: "center",
-            justifyContent: "space-between",
-            px: 2.25,
-            py: 1.5,
-            borderTop: "1px solid #F0F2F5",
-            bgcolor: "#FAFBFC",
-          }}
-        >
-          <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>No call selected</Typography>
-          <Button variant="secondary" size="sm" disabled sx={{ px: 1.75 }}>
-            Copy transcript
-          </Button>
-        </Stack>
-      </Box>
-    );
-  }
-
-  return (
-    <Box
-      sx={{
-        ...surface,
-        height: DESKTOP_PANEL_HEIGHT,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      <Stack
-        direction="row"
-        sx={{
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 1,
-          px: 2.25,
-          pt: 2,
-          pb: 1.75,
-          borderBottom: "1px solid #F0F2F5",
-        }}
-      >
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", letterSpacing: "-0.01em" }}>
-            {call.channel === "text" ? "Text thread" : "Transcript"} · {call.patientName}
-          </Typography>
-          <Typography sx={{ mt: 0.4, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>
-            {call.channel === "text" ? `Text #${call.callNumber}` : `Call #${call.callNumber}`} · {call.dateLabel}
-            {call.windowLabel ? ` · ${call.windowLabel}` : ""}
-            {call.channel === "call" && (call.hasTranscript || call.messages.length > 0) ? ` · ${call.duration}` : ""}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
-          <ChannelChip channel={call.channel} />
-          <StatusLabel status={call.status} />
-          <Box
-            component="button"
-            type="button"
-            aria-label="Close transcript"
-            onClick={onClose}
-            sx={{
-              display: "grid",
-              placeItems: "center",
-              width: 28,
-              height: 28,
-              p: 0,
-              border: 0,
-              borderRadius: "8px",
-              bgcolor: "transparent",
-              color: "#64748B",
-              cursor: "pointer",
-              "&:hover": { bgcolor: "#F1F4F8" },
-            }}
-          >
-            <X size={16} />
-          </Box>
-        </Stack>
-      </Stack>
-
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2 }}>
-        <TranscriptBody call={call} loading={loading} error={error} />
-      </Box>
-
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{
-          alignItems: "center",
-          justifyContent: "space-between",
-          px: 2.25,
-          py: 1.5,
-          borderTop: "1px solid #F0F2F5",
-          bgcolor: "#FAFBFC",
-        }}
-      >
-        <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
-          {call.messages.length > 0
-            ? `End of transcript · ${call.messages.length} messages`
-            : loading
-              ? "Loading transcript…"
-              : "Transcript pending"}
-        </Typography>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={call.messages.length === 0}
-          onClick={onCopy}
-          sx={{ px: 1.75 }}
-        >
-          {copied ? "Copied" : "Copy transcript"}
-        </Button>
-      </Stack>
-    </Box>
   );
 }

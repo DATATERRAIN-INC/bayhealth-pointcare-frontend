@@ -25,7 +25,9 @@ import {
 import { parseAuthApiError } from "@/lib/api/authErrors";
 import { formatDobInput, isFutureDate, parseDobInput, toIsoDate } from "@/data/gapPatients";
 import {
+  formatPhoneInputValue,
   getPhoneLengthRule,
+  phoneInputMaxLength,
   phoneSamplePlaceholder,
   sanitizePhoneDigits,
   validatePhoneNumber,
@@ -135,6 +137,8 @@ function PhoneField({
   const countryCodes = (COUNTRY_CODES as readonly string[]).includes(countryCode)
     ? COUNTRY_CODES
     : [countryCode, ...COUNTRY_CODES];
+  const phoneRule = getPhoneLengthRule(countryCode);
+  const displayPhone = formatPhoneInputValue(phoneNumber, phoneRule.max);
 
   return (
     <Box>
@@ -142,7 +146,7 @@ function PhoneField({
       <TextField
         fullWidth
         size="small"
-        value={phoneNumber}
+        value={displayPhone}
         placeholder={phoneSamplePlaceholder(countryCode)}
         error={Boolean(error)}
         helperText={error || undefined}
@@ -161,8 +165,8 @@ function PhoneField({
         }}
         slotProps={{
           htmlInput: {
-            inputMode: "numeric",
-            maxLength: getPhoneLengthRule(countryCode).max,
+            inputMode: "tel",
+            maxLength: phoneInputMaxLength(phoneRule.max),
           },
           input: {
             startAdornment: (

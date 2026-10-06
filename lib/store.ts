@@ -4,6 +4,7 @@ import { callsApi } from "@/lib/api/callsApi";
 import { patientsApi } from "@/lib/api/patientsApi";
 import { notificationsApi } from "@/lib/api/notificationsApi";
 import { settingsApi } from "@/lib/api/settingsApi";
+import { smsApi } from "@/lib/api/smsApi";
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     [callsApi.reducerPath]: callsApi.reducer,
     [settingsApi.reducerPath]: settingsApi.reducer,
     [notificationsApi.reducerPath]: notificationsApi.reducer,
+    [smsApi.reducerPath]: smsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -20,6 +22,7 @@ export const store = configureStore({
       callsApi.middleware,
       settingsApi.middleware,
       notificationsApi.middleware,
+      smsApi.middleware,
     ),
 });
 
@@ -29,6 +32,7 @@ export function resetClientStore(): void {
   store.dispatch(callsApi.util.resetApiState());
   store.dispatch(settingsApi.util.resetApiState());
   store.dispatch(notificationsApi.util.resetApiState());
+  store.dispatch(smsApi.util.resetApiState());
 }
 
 export type RootState = ReturnType<typeof store.getState>;

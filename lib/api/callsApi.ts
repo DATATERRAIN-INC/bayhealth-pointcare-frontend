@@ -3,6 +3,7 @@ import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
 import type { ProcessingEstimate, QueueCallItem, QueueStatus } from "@/types/queue";
+import { formatPhoneNumber } from "@/constants/phone";
 
 const CALL_TIME_ZONE = "America/New_York";
 
@@ -11,6 +12,7 @@ export interface CallsQuery {
   pageSize: number;
   status?: OutreachStatus;
   channel?: OutreachChannel;
+  patient?: string | number;
 }
 
 export interface CallsPage {
@@ -88,7 +90,7 @@ function formatDuration(seconds: number | null | undefined): string {
 
 function formatPhone(record: CallApiRecord): string {
   const raw = String(record.to_number || record.from_number || "").trim();
-  return raw || "—";
+  return formatPhoneNumber(raw);
 }
 
 function mapQueueStatusFromApi(value: string | undefined): QueueStatus {
@@ -215,13 +217,16 @@ export const callsApi = createApi({
   tagTypes: ["Call"],
   endpoints: (builder) => ({
     getCalls: builder.query<CallsPage, CallsQuery>({
-      query: ({ page, pageSize, status, channel }) => {
+      query: ({ page, pageSize, status, channel, patient }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
         });
         if (status) params.set("status", status);
         if (channel) params.set("channel", channel);
+        if (patient !== undefined && patient !== null && String(patient).trim()) {
+          params.set("patient", String(patient));
+        }
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => {

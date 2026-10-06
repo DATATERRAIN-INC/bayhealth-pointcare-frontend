@@ -1,4 +1,11 @@
 /** National phone digit rules keyed by dialing code (without the number itself). */
+import {
+  formatPhoneInputValue,
+  formatPhoneNumber,
+  phoneDigitsOnly,
+  phoneInputMaxLength,
+} from "@/constants/phone";
+
 export type PhoneLengthRule = {
   min: number;
   max: number;
@@ -37,8 +44,11 @@ export function sanitizePhoneDigits(value: string, countryCode: string): string 
 }
 
 export function phoneSamplePlaceholder(countryCode: string): string {
-  return getPhoneLengthRule(countryCode).sample;
+  const rule = getPhoneLengthRule(countryCode);
+  return formatPhoneInputValue(rule.sample, rule.max);
 }
+
+export { formatPhoneNumber, formatPhoneInputValue, phoneDigitsOnly, phoneInputMaxLength };
 
 /** Returns an error message when invalid; null when empty or valid. */
 export function validatePhoneNumber(

@@ -21,7 +21,9 @@ import {
   type SettingsPayload,
 } from "@/lib/api/settingsApi";
 import {
+  formatPhoneInputValue,
   getPhoneLengthRule,
+  phoneInputMaxLength,
   phoneSamplePlaceholder,
   sanitizePhoneDigits,
   validatePhoneNumber,
@@ -911,7 +913,10 @@ export function SettingsWorkspace() {
                       <TextField
                         fullWidth
                         size="small"
-                        value={agent.phoneNumber}
+                        value={formatPhoneInputValue(
+                          agent.phoneNumber,
+                          getPhoneLengthRule(agent.countryCode || "+1").max,
+                        )}
                         placeholder={phoneSamplePlaceholder(agent.countryCode || "+1")}
                         error={Boolean(phoneError)}
                         helperText={phoneError || undefined}
@@ -938,8 +943,10 @@ export function SettingsWorkspace() {
                         }}
                         slotProps={{
                           htmlInput: {
-                            inputMode: "numeric",
-                            maxLength: getPhoneLengthRule(agent.countryCode || "+1").max,
+                            inputMode: "tel",
+                            maxLength: phoneInputMaxLength(
+                              getPhoneLengthRule(agent.countryCode || "+1").max,
+                            ),
                           },
                           input: {
                             startAdornment: (
