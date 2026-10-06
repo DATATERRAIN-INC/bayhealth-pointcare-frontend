@@ -45,6 +45,98 @@ import {
   queueStatusMeta,
 } from "@/types/queue";
 
+type WaitingTabKey = "all" | "scheduled" | "paused" | "queued";
+
+const WAITING_TABS: { key: WaitingTabKey; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "scheduled", label: "Schedule" },
+  { key: "paused", label: "Paused" },
+  { key: "queued", label: "Queued" },
+];
+
+const ALL_WAITING_STATUS = JSON.stringify(["queued", "paused", "scheduled"]);
+
+function waitingStatusParam(tab: WaitingTabKey): string {
+  return tab === "all" ? ALL_WAITING_STATUS : tab;
+}
+
+function waitingEmptyMessage(tab: WaitingTabKey, processingActive: boolean): string {
+  if (tab === "scheduled") return "No scheduled calls right now.";
+  if (tab === "paused") return "No paused calls right now.";
+  if (tab === "queued") return "No queued calls right now.";
+  return processingActive
+    ? "All remaining capacity is on active calls."
+    : "No calls are waiting right now.";
+}
+
+function WaitingStatusTabs({
+  value,
+  onChange,
+}: {
+  value: WaitingTabKey;
+  onChange: (next: WaitingTabKey) => void;
+}) {
+  return (
+    <Box
+      role="tablist"
+      aria-label="Filter waiting calls"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        alignSelf: "flex-start",
+        p: "3px",
+        borderRadius: "10px",
+        bgcolor: "#F1F5F9",
+        border: "1px solid #E2E8F0",
+        maxWidth: "100%",
+        overflowX: "auto",
+        "&::-webkit-scrollbar": { display: "none" },
+        scrollbarWidth: "none",
+      }}
+    >
+      {WAITING_TABS.map((item) => {
+        const selected = value === item.key;
+        return (
+          <Box
+            key={item.key}
+            component="button"
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(item.key)}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              minWidth: 72,
+              px: 1.6,
+              py: 0.7,
+              border: 0,
+              borderRadius: "8px",
+              bgcolor: selected ? "primary.main" : "transparent",
+              color: selected ? "#FFFFFF" : "#64748B",
+              boxShadow: selected ? "0 1px 2px rgb(47 114 185 / 0.28)" : "none",
+              fontFamily: "inherit",
+              fontSize: "var(--font-size-body)",
+              fontWeight: selected ? 650 : 550,
+              lineHeight: 1.25,
+              cursor: "pointer",
+              transition: "background-color 140ms ease, color 140ms ease, box-shadow 140ms ease",
+              "&:hover": {
+                color: selected ? "#FFFFFF" : "#1C2A6B",
+                bgcolor: selected ? "primary.main" : "rgb(255 255 255 / 0.7)",
+              },
+            }}
+          >
+            {item.label}
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 function formatWait(iso: string | null, now: number): string {
   if (!iso) return "—";
   const then = new Date(iso).getTime();
@@ -495,6 +587,7 @@ export function CallQueueWorkspace() {
   const [processingPageSize, setProcessingPageSize] = useState(5);
   const [waitingTablePage, setWaitingTablePage] = useState(0);
   const [waitingPageSize, setWaitingPageSize] = useState(10);
+  const [waitingTab, setWaitingTab] = useState<WaitingTabKey>("all");
   const [triggerCall, { isLoading: startingCall }] = useTriggerCallMutation();
   const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
   const [cancelCall, { isLoading: cancellingCall }] = useCancelCallMutation();
@@ -505,8 +598,12 @@ export function CallQueueWorkspace() {
     [processingPage, processingPageSize],
   );
   const waitingQueryArgs = useMemo(
-    () => ({ page: waitingTablePage + 1, pageSize: waitingPageSize }),
-    [waitingTablePage, waitingPageSize],
+    () => ({
+      page: waitingTablePage + 1,
+      pageSize: waitingPageSize,
+      status: waitingStatusParam(waitingTab),
+    }),
+    [waitingTablePage, waitingPageSize, waitingTab],
   );
 
   const {
@@ -583,6 +680,7 @@ export function CallQueueWorkspace() {
   }, [detailsItem]);
 
   const queueIsEmpty =
+    waitingTab === "all" &&
     processingCount === 0 &&
     waitingCount === 0 &&
     !showProcessingSkeleton &&
@@ -791,6 +889,14 @@ export function CallQueueWorkspace() {
               )}
             </Box>
 
+          <WaitingStatusTabs
+            value={waitingTab}
+            onChange={(next) => {
+              setWaitingTab(next);
+              setWaitingTablePage(0);
+            }}
+          />
+
           <Box
             sx={{
               bgcolor: "#FFFFFF",
@@ -836,9 +942,7 @@ export function CallQueueWorkspace() {
               <Typography
                 sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}
               >
-                {(processing?.length ?? 0) > 0
-                  ? "All remaining capacity is on active calls."
-                  : "No calls are waiting right now."}
+                {waitingEmptyMessage(waitingTab, (processing?.length ?? 0) > 0)}
               </Typography>
             ) : (
               <>
