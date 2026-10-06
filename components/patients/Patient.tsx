@@ -20,7 +20,7 @@ import {
   ViewPatientDialog,
 } from "@/components/patients/ViewPatientDialog";
 import { PatientTranscriptDialog } from "@/components/patients/PatientTranscriptDialog";
-import { CallStatusChip } from "@/components/shared/CallStatusChip";
+import { PatientCallStatus } from "@/components/patients/PatientCallStatus";
 import { RecordActions, type ActionsMenuItem } from "@/components/shared/RecordActions";
 import { Button } from "@/components/ui/Button";
 import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
@@ -318,7 +318,7 @@ function buildPatientColumns(
       flex: 0.9,
       minWidth: 140,
       sortable: false,
-      renderCell: (params) => <CallStatusChip status={params.row.callStatus} />,
+      renderCell: (params) => <PatientCallStatus patient={params.row} />,
     },
     {
       field: "source",
@@ -614,7 +614,7 @@ export function Patient() {
                 {patient.address}
               </Typography>
               <Stack direction="row" spacing={0.75} sx={{ mt: 0.7, alignItems: "center", flexWrap: "wrap" }}>
-                <CallStatusChip status={patient.callStatus} />
+                <PatientCallStatus patient={patient} />
                 <Box
                   component="span"
                   sx={{
