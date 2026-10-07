@@ -1,3 +1,5 @@
+import type { TranscriptLine } from "@/data/gapCalls";
+
 export interface CallApiRecord {
   id: number | string;
   patient?: number | string;
@@ -28,6 +30,9 @@ export interface CallApiRecord {
   ended_at?: string | null;
   duration_seconds?: number | null;
   has_transcript?: boolean;
+  /** Signed or API URL for the call audio (often .wav). */
+  recording_url?: string;
+  recording?: string;
   message_count?: number;
   created_at?: string;
   updated_at?: string;
@@ -41,6 +46,13 @@ export interface TranscriptApiLine {
 
 export interface CallTranscriptResponse {
   transcript: TranscriptApiLine[];
+  recording_url?: string;
+  recording?: string;
+}
+
+export interface CallTranscriptPayload {
+  transcript: TranscriptLine[];
+  recordingUrl: string | null;
 }
 
 export interface CallsListResponse {

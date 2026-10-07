@@ -22,6 +22,8 @@ export interface OutreachCall {
   hasTranscript: boolean;
   messageCount: number;
   retellCallId: string;
+  /** Playable recording URL from the calls API (when recording is enabled). */
+  recordingUrl: string | null;
   messages: TranscriptLine[];
 }
 

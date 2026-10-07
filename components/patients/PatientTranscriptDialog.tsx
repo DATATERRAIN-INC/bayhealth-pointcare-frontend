@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import type { OutreachChannel } from "@/data/gapCalls";
 import { formatCallDuration, patientOutreachLabel, type PatientRecord } from "@/data/gapPatients";
 import { elevation } from "@/lib/theme/tokens";
+import { CallRecordingPlayer } from "@/components/calls/CallRecordingPlayer";
 import { useGetCallTranscriptQuery } from "@/lib/api/callsApi";
 
 export function OutreachTranscriptPanel({
@@ -27,10 +28,12 @@ export function OutreachTranscriptPanel({
   channel: OutreachChannel;
 }) {
   const canFetch = Boolean(retellCallId.trim());
-  const { data: lines = [], isLoading, isError, isFetching } = useGetCallTranscriptQuery(retellCallId.trim(), {
+  const { data, isLoading, isError, isFetching } = useGetCallTranscriptQuery(retellCallId.trim(), {
     skip: !active || !canFetch,
   });
-  const loading = (isLoading || isFetching) && lines.length === 0;
+  const lines = data?.transcript ?? [];
+  const recordingUrl = data?.recordingUrl ?? null;
+  const loading = (isLoading || isFetching) && lines.length === 0 && !recordingUrl;
 
   if (loading) {
     return (
@@ -67,7 +70,7 @@ export function OutreachTranscriptPanel({
     );
   }
 
-  if (lines.length === 0) {
+  if (lines.length === 0 && !recordingUrl) {
     return (
       <EmptyMessage
         text={channel === "text" ? "No messages for this text." : "No transcript for this call."}
@@ -77,6 +80,7 @@ export function OutreachTranscriptPanel({
 
   return (
     <Stack spacing={1.75}>
+      {channel === "call" && recordingUrl ? <CallRecordingPlayer url={recordingUrl} /> : null}
       {lines.map((line, index) => {
         const fromPatient = line.speaker === "Patient";
         return (
