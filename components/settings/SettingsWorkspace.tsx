@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type WheelEvent,
+} from "react";
 import {
   Box,
   InputAdornment,
@@ -66,6 +74,8 @@ interface CallingSettings {
   reminderTimeframeHours: string;
   recording: boolean;
   textSmsEnabled: boolean;
+  /** After this many not-attended calls, Text/SMS is sent. */
+  smsTriggerAfterCalls: string;
   liveAgents: LiveAgentDraft[];
 }
 
@@ -104,6 +114,7 @@ const defaultSettings: CallingSettings = {
   reminderTimeframeHours: "24",
   recording: true,
   textSmsEnabled: false,
+  smsTriggerAfterCalls: "3",
   liveAgents: [createLiveAgentDraft(undefined, 0)],
 };
 
@@ -150,6 +161,28 @@ const fieldSx = {
     right: 10,
   },
 } as const;
+
+/** Number inputs without mouse spinners or scroll-to-change. */
+const noSpinnerNumberFieldSx = {
+  ...fieldSx,
+  "& input[type=number]": {
+    MozAppearance: "textfield",
+    "&::-webkit-outer-spin-button, &::-webkit-inner-spin-button": {
+      WebkitAppearance: "none",
+      margin: 0,
+    },
+  },
+} as const;
+
+function blockNumberStepperKeys(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    event.preventDefault();
+  }
+}
+
+function blockNumberWheel(event: WheelEvent<HTMLInputElement>) {
+  event.currentTarget.blur();
+}
 
 const timeFieldSx = {
   ...fieldSx,
@@ -273,6 +306,7 @@ function toDraft(payload: SettingsPayload): CallingSettings {
     reminderTimeframeHours: String(payload.reminder_timeframe_hours),
     recording: payload.recording_enabled,
     textSmsEnabled: payload.text_sms_enabled,
+    smsTriggerAfterCalls: String(payload.sms_trigger_after_calls),
     liveAgents,
   };
 }
@@ -290,6 +324,17 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
   const triggerCount = Number(settings.callTriggerCount);
   if (!Number.isInteger(triggerCount) || triggerCount < 1) {
     return { error: "Enter how many times a call should be triggered (1 or more)." };
+  }
+  const smsTriggerAfter = Number(settings.smsTriggerAfterCalls);
+  if (settings.textSmsEnabled) {
+    if (!Number.isInteger(smsTriggerAfter) || smsTriggerAfter < 1) {
+      return { error: "Enter after how many not-attended calls to send Text/SMS (1 or more)." };
+    }
+    if (smsTriggerAfter > triggerCount) {
+      return {
+        error: `SMS trigger after calls cannot be more than times to trigger call (${triggerCount}).`,
+      };
+    }
   }
   const reminderHours = Number(settings.reminderTimeframeHours);
   if (!Number.isInteger(reminderHours) || reminderHours < 1 || reminderHours > 720) {
@@ -336,6 +381,9 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
       calls_enabled: settings.callsEnabled,
       recording_enabled: settings.recording,
       text_sms_enabled: settings.textSmsEnabled,
+      sms_trigger_after_calls: Number.isInteger(smsTriggerAfter) && smsTriggerAfter >= 1
+        ? Math.min(smsTriggerAfter, triggerCount)
+        : triggerCount,
       start_time: start,
       end_time: end,
       timezone,
@@ -373,8 +421,11 @@ function windowSummary(settings: CallingSettings): string {
   const hours = Math.round((diff / 60) * 10) / 10;
   const hourLabel = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
   const reminderHours = settings.reminderTimeframeHours || "—";
+  const smsPart = settings.textSmsEnabled
+    ? ` Text/SMS is sent after ${settings.smsTriggerAfterCalls || "—"} not-attended call${settings.smsTriggerAfterCalls === "1" ? "" : "s"}.`
+    : "";
   const status = settings.callsEnabled
-    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}. Missed calls are reminded after ${reminderHours} hour${reminderHours === "1" ? "" : "s"}.`
+    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}. Missed calls are reminded after ${reminderHours} hour${reminderHours === "1" ? "" : "s"}.${smsPart}`
     : "Outreach calls are turned off.";
   return `Calls run ${settings.start.replace(/^0/, "")} – ${settings.end.replace(/^0/, "")} ${zone} (${hourLabel} hours). ${status} Calls outside this window wait until it opens.`;
 }
@@ -499,17 +550,20 @@ function SettingToggle({
   description,
   checked,
   onChange,
+  embedded = false,
 }: {
   title: string;
   description: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  /** When true, skip the outer card chrome (parent supplies the surface). */
+  embedded?: boolean;
 }) {
   return (
     <Stack
       direction="row"
       sx={{
-        ...surface,
+        ...(embedded ? {} : surface),
         alignItems: "center",
         justifyContent: "space-between",
         gap: 2,
@@ -568,6 +622,18 @@ export function SettingsWorkspace() {
     if (timezones.some((zone) => zone.value === draft.timezone)) return [...timezones];
     return [{ value: draft.timezone, label: draft.timezone }, ...timezones];
   }, [draft.timezone]);
+  const callTriggerMax = Math.max(1, Number(draft.callTriggerCount) || 1);
+  const smsTriggerError = useMemo(() => {
+    if (!draft.textSmsEnabled || !draft.smsTriggerAfterCalls.trim()) return "";
+    const value = Number(draft.smsTriggerAfterCalls);
+    if (!Number.isInteger(value) || value < 1) {
+      return "Enter a whole number of 1 or more.";
+    }
+    if (value > callTriggerMax) {
+      return `Must be less than or equal to times to trigger call (${draft.callTriggerCount || "—"}).`;
+    }
+    return "";
+  }, [callTriggerMax, draft.callTriggerCount, draft.smsTriggerAfterCalls, draft.textSmsEnabled]);
 
   function updateDraft(patch: Partial<CallingSettings>) {
     dirty.current = true;
@@ -810,12 +876,107 @@ export function SettingsWorkspace() {
           onChange={(recording) => updateDraft({ recording })}
         />
 
-        <SettingToggle
-          title="Text / SMS"
-          description="Send text or SMS messages as part of patient outreach."
-          checked={draft.textSmsEnabled}
-          onChange={(textSmsEnabled) => updateDraft({ textSmsEnabled })}
-        />
+        <Box sx={{ ...surface, overflow: "hidden" }}>
+          <SettingToggle
+            title="Text / SMS"
+            description="Send text or SMS after a set number of not-attended call attempts."
+            checked={draft.textSmsEnabled}
+            onChange={(textSmsEnabled) => updateDraft({ textSmsEnabled })}
+            embedded
+          />
+          {draft.textSmsEnabled ? (
+            <Box
+              sx={{
+                mx: 2.5,
+                mb: 2.1,
+                px: 1.5,
+                py: 1.25,
+                borderRadius: "10px",
+                bgcolor: "#F7F9FC",
+                border: "1px solid #E8EEF5",
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1 }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "var(--font-size-body)",
+                    fontWeight: 600,
+                    color: "#5C6478",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  SMS after
+                </Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={draft.smsTriggerAfterCalls}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    if (next !== "" && !/^\d+$/.test(next)) return;
+                    updateDraft({ smsTriggerAfterCalls: next });
+                  }}
+                  error={Boolean(smsTriggerError)}
+                  sx={{
+                    ...noSpinnerNumberFieldSx,
+                    width: 64,
+                    "& .MuiOutlinedInput-root": {
+                      ...noSpinnerNumberFieldSx["& .MuiOutlinedInput-root"],
+                      minHeight: 32,
+                      borderRadius: "8px",
+                      bgcolor: "#FFFFFF",
+                    },
+                    "& .MuiOutlinedInput-input": {
+                      ...noSpinnerNumberFieldSx["& .MuiOutlinedInput-input"],
+                      height: 32,
+                      py: 0,
+                      px: 1,
+                      textAlign: "center",
+                      fontWeight: 650,
+                      fontVariantNumeric: "tabular-nums",
+                    },
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 1,
+                      max: callTriggerMax,
+                      step: 1,
+                      inputMode: "numeric",
+                      "aria-label": "SMS after not-attended calls",
+                      onKeyDown: blockNumberStepperKeys,
+                      onWheel: blockNumberWheel,
+                    },
+                  }}
+                />
+                <Typography
+                  sx={{
+                    fontSize: "var(--font-size-body)",
+                    fontWeight: 600,
+                    color: "#5C6478",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  not-attended call{draft.smsTriggerAfterCalls === "1" ? "" : "s"}
+                </Typography>
+              </Stack>
+              <Typography
+                sx={{
+                  mt: 0.85,
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                  color: smsTriggerError ? "error.main" : "#8B93A7",
+                }}
+              >
+                {smsTriggerError ||
+                  `Max ${draft.callTriggerCount || "—"} (times to trigger call).`}
+              </Typography>
+            </Box>
+          ) : null}
+        </Box>
 
         <Box sx={{ ...surface, overflow: "hidden" }}>
           <Box sx={{ px: 2.5, pt: 2.1, pb: 1.75, borderBottom: "1px solid #F0F2F5" }}>

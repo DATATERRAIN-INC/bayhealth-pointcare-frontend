@@ -2,7 +2,14 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import { parseCallStatus, type CallStatus } from "@/components/shared/CallStatusChip";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
-import type { CallApiRecord, CallTranscriptResponse, CallsListResponse, TranscriptApiLine } from "@/types/call";
+import { pickRecordingUrl, recordingUrlFromResponse } from "@/lib/api/callRecording";
+import type {
+  CallApiRecord,
+  CallTranscriptPayload,
+  CallTranscriptResponse,
+  CallsListResponse,
+  TranscriptApiLine,
+} from "@/types/call";
 import type { ProcessingEstimate, QueueCallItem, QueueStatus } from "@/types/queue";
 import { formatPhoneNumber } from "@/constants/phone";
 
@@ -239,6 +246,7 @@ export function mapApiCall(record: CallApiRecord): OutreachCall {
     hasTranscript: Boolean(record.has_transcript),
     messageCount: record.message_count ?? 0,
     retellCallId: record.retell_call_id?.trim() ?? "",
+    recordingUrl: pickRecordingUrl(record) || null,
     messages: [],
   };
 }
@@ -330,9 +338,21 @@ export const callsApi = createApi({
       providesTags: [{ type: "Call", id: "QUEUE_WAITING" }],
       keepUnusedDataFor: 120,
     }),
-    getCallTranscript: builder.query<TranscriptLine[], string>({
+    getCallTranscript: builder.query<CallTranscriptPayload, string>({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
-      transformResponse: (response: CallTranscriptResponse) => (response.transcript ?? []).map(mapTranscriptLine),
+      transformResponse: (response: CallTranscriptResponse | CallsListResponse | CallApiRecord[]) => {
+        const recordingUrl = recordingUrlFromResponse(response) || null;
+        if (Array.isArray(response)) {
+          return { transcript: [], recordingUrl };
+        }
+        if ("transcript" in response && Array.isArray(response.transcript)) {
+          return {
+            transcript: response.transcript.map(mapTranscriptLine),
+            recordingUrl,
+          };
+        }
+        return { transcript: [], recordingUrl };
+      },
     }),
     setCallPaused: builder.mutation<unknown, { id: number | string; paused: boolean }>({
       query: ({ id, paused }) => ({

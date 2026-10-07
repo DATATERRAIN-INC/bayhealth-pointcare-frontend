@@ -11,6 +11,7 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { MessageSquareText, Phone } from "lucide-react";
 import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
 import { TablePager } from "@/components/shared/TablePager";
+import { CallRecordingPlayer } from "@/components/calls/CallRecordingPlayer";
 import {
   ChannelChip,
   DESKTOP_PANEL_HEIGHT,
@@ -263,19 +264,25 @@ export function CallsWorkspace() {
   const mobileCall = paged.find((call) => call.id === mobileOpenId);
   const transcriptCall = mobileCall?.retellCallId ? mobileCall : selected?.retellCallId ? selected : undefined;
   const {
-    data: transcriptLines = [],
+    data: transcriptPayload,
     isLoading: transcriptLoading,
     isError: transcriptError,
   } = useGetCallTranscriptQuery(transcriptCall?.retellCallId ?? "", {
-    skip: !transcriptCall?.hasTranscript || !transcriptCall.retellCallId,
+    skip:
+      !transcriptCall?.retellCallId ||
+      (!transcriptCall.hasTranscript && !transcriptCall.recordingUrl),
   });
 
   function withTranscript(call: OutreachCall | undefined): OutreachCall | undefined {
     if (!call || call.retellCallId !== transcriptCall?.retellCallId) return call;
+    const transcriptLines = transcriptPayload?.transcript ?? [];
+    const recordingUrl =
+      call.recordingUrl || transcriptPayload?.recordingUrl || null;
     return {
       ...call,
       messages: transcriptLines,
       messageCount: transcriptLines.length || call.messageCount,
+      recordingUrl,
     };
   }
 
@@ -286,7 +293,7 @@ export function CallsWorkspace() {
   }
 
   function transcriptLabel(call: OutreachCall): string {
-    const available = call.hasTranscript || call.messages.length > 0;
+    const available = call.hasTranscript || call.messages.length > 0 || Boolean(call.recordingUrl);
     if (call.id === selected?.id && available) return "Viewing";
     if (available) return "View";
     if (call.channel === "call" && call.status === "in_progress") return "After call ends";
@@ -622,7 +629,8 @@ export function CallsWorkspace() {
         ) : (
           paged.map((call) => {
             const open = mobileOpenId === call.id;
-            const transcriptReady = call.hasTranscript || call.messages.length > 0;
+            const transcriptReady =
+              call.hasTranscript || call.messages.length > 0 || Boolean(call.recordingUrl);
             return (
               <Box
                 key={call.id}
@@ -659,6 +667,9 @@ export function CallsWorkspace() {
                       border: "1px solid #D5E2F0",
                     }}
                   >
+                    {call.channel === "call" && (withTranscript(call)?.recordingUrl ?? call.recordingUrl) ? (
+                      <CallRecordingPlayer url={withTranscript(call)?.recordingUrl ?? call.recordingUrl} />
+                    ) : null}
                     <TranscriptBody
                       call={withTranscript(call) ?? call}
                       loading={transcriptLoading && call.retellCallId === transcriptCall?.retellCallId}

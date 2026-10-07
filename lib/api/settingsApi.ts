@@ -12,6 +12,11 @@ export interface SettingsPayload {
   calls_enabled: boolean;
   recording_enabled: boolean;
   text_sms_enabled: boolean;
+  /**
+   * After this many not-attended calls for a patient, send the Text/SMS follow-up.
+   * Example: 2 → SMS after the 2nd unanswered call.
+   */
+  sms_trigger_after_calls: number;
   start_time: string;
   end_time: string;
   timezone: string;
@@ -126,6 +131,13 @@ export function mapSettingsPayload(response: unknown): SettingsPayload {
     source.max_call_attempts ??
     source.call_attempts ??
     source.retry_count;
+  const callTriggerCount = asCount(triggerCount, 3);
+  const smsTriggerRaw =
+    source.sms_trigger_after_calls ??
+    source.text_sms_trigger_after_calls ??
+    source.sms_after_missed_calls ??
+    source.sms_trigger_count;
+  const smsTriggerAfterCalls = asCount(smsTriggerRaw, callTriggerCount);
   return {
     calls_enabled: asBoolean(source.calls_enabled, false),
     recording_enabled: asBoolean(source.recording_enabled, true),
@@ -133,11 +145,12 @@ export function mapSettingsPayload(response: unknown): SettingsPayload {
       source.text_sms_enabled ?? source.sms_enabled ?? source.text_enabled,
       false,
     ),
+    sms_trigger_after_calls: Math.min(smsTriggerAfterCalls, callTriggerCount),
     start_time: String(source.start_time ?? "09:00:00"),
     end_time: String(source.end_time ?? "17:00:00"),
     timezone: String(source.timezone ?? "America/New_York"),
     max_calls_per_run: asCount(source.max_calls_per_run, 5),
-    call_trigger_count: asCount(triggerCount, 3),
+    call_trigger_count: callTriggerCount,
     reminder_timeframe_hours: asCount(source.reminder_timeframe_hours, 24),
     live_agent_numbers: mapLiveAgentNumbers(source),
   };

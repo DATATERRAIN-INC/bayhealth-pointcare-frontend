@@ -10,6 +10,7 @@ import {
   type OutreachChannel,
 } from "@/data/gapCalls";
 import { CallStatusChip } from "@/components/shared/CallStatusChip";
+import { CallRecordingPlayer } from "@/components/calls/CallRecordingPlayer";
 import { elevation } from "@/lib/theme/tokens";
 
 export const DESKTOP_PANEL_HEIGHT = 640;
@@ -295,6 +296,7 @@ export function TranscriptPanel({
       </Stack>
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2 }}>
+        {call.channel === "call" && call.recordingUrl ? <CallRecordingPlayer url={call.recordingUrl} /> : null}
         <TranscriptBody call={call} loading={loading} error={error} />
       </Box>
 
