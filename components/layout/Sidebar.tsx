@@ -14,7 +14,7 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { ListOrdered, Phone, Settings, Users } from "lucide-react";
+import { Phone, Settings, Users } from "lucide-react";
 import { useState } from "react";
 import { ConfirmLogoutDialog } from "@/components/auth/ConfirmLogoutDialog";
 import { BachLogo } from "@/components/brand/BachLogo";
@@ -24,7 +24,6 @@ import type { User } from "@/types/user";
 const navItems = [
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/calls", label: "Calls and texts", icon: Phone },
-  { href: "/queue", label: "Call queue", icon: ListOrdered },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

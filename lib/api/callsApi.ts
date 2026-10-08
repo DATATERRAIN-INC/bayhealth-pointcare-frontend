@@ -252,9 +252,14 @@ export function mapApiCall(record: CallApiRecord): OutreachCall {
 }
 
 function mapTranscriptLine(line: TranscriptApiLine): TranscriptLine {
-  const speaker = line.speaker?.trim().toLowerCase() === "patient" ? "Patient" : "AI agent";
+  const role = line.speaker?.trim().toLowerCase() ?? "";
+  const fromPatient = role === "patient";
+  const displayName =
+    line.name?.trim() ||
+    (fromPatient ? "Patient" : role === "live_agent" ? "Live agent" : "AI agent");
   return {
-    speaker,
+    speaker: displayName,
+    fromPatient,
     time: line.at ? formatClock(line.at) : "",
     text: line.text ?? "",
   };

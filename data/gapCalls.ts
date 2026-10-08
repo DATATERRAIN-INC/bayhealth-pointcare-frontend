@@ -4,7 +4,10 @@ export type OutreachStatus = "completed" | "in_progress" | "not_attended" | "cal
 export type OutreachChannel = "call" | "text";
 
 export interface TranscriptLine {
-  speaker: "AI agent" | "Patient";
+  /** Display label from API `name` (e.g. "AI agent", "Live agent", "Patient"). */
+  speaker: string;
+  /** True when API speaker role is patient (right-aligned bubble). */
+  fromPatient: boolean;
   time: string;
   text: string;
 }

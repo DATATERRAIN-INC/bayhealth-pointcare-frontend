@@ -39,9 +39,13 @@ export interface CallApiRecord {
 }
 
 export interface TranscriptApiLine {
-  at: string | null;
+  at?: string | null;
   text: string;
+  /** Role key from API: patient | agent | live_agent */
   speaker: string;
+  /** Display label from API, e.g. "AI agent", "Live agent", "Patient" */
+  name?: string;
+  segment?: string;
 }
 
 export interface CallTranscriptResponse {
