@@ -1,5 +1,5 @@
-import { CallQueueWorkspace } from "@/components/calls/CallQueueWorkspace";
+import { redirect } from "next/navigation";
 
 export default function CallQueuePage() {
-  return <CallQueueWorkspace />;
+  redirect("/calls?view=queue");
 }

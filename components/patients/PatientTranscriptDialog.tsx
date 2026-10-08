@@ -82,7 +82,7 @@ export function OutreachTranscriptPanel({
     <Stack spacing={1.75}>
       {channel === "call" && recordingUrl ? <CallRecordingPlayer url={recordingUrl} /> : null}
       {lines.map((line, index) => {
-        const fromPatient = line.speaker === "Patient";
+        const fromPatient = line.fromPatient;
         return (
           <Box
             key={`${index}-${line.speaker}`}

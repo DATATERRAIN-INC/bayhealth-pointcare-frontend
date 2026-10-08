@@ -1,6 +1,14 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type Ref,
+} from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Box,
   Skeleton,
@@ -8,9 +16,10 @@ import {
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { MessageSquareText, Phone } from "lucide-react";
+import { History, ListOrdered, MessageSquareText, Phone, type LucideProps } from "lucide-react";
 import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
 import { TablePager } from "@/components/shared/TablePager";
+import { CallQueueWorkspace } from "@/components/calls/CallQueueWorkspace";
 import { CallRecordingPlayer } from "@/components/calls/CallRecordingPlayer";
 import {
   ChannelChip,
@@ -27,8 +36,10 @@ import {
 import { useGetCallTranscriptQuery, useGetCallsQuery } from "@/lib/api/callsApi";
 import { elevation } from "@/lib/theme/tokens";
 
+type WorkspaceView = "activity" | "queue";
 type FilterKey = "all" | OutreachStatus;
 type ChannelFilterKey = "all" | OutreachChannel;
+type TabIcon = ComponentType<LucideProps>;
 
 const filters: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
@@ -38,10 +49,19 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "not_attended", label: "Not attended" },
 ];
 
+const workspaceViews: {
+  key: WorkspaceView;
+  label: string;
+  icon: TabIcon;
+}[] = [
+  { key: "activity", label: "Activity", icon: History },
+  { key: "queue", label: "Queue", icon: ListOrdered },
+];
+
 const channelFilters: {
   key: ChannelFilterKey;
   label: string;
-  icon?: typeof Phone;
+  icon?: TabIcon;
 }[] = [
   { key: "all", label: "All" },
   { key: "call", label: "Call", icon: Phone },
@@ -55,88 +75,86 @@ const surface = {
   boxShadow: elevation.floatingPanel,
 } as const;
 
-function TypeFilterTabs({
+function TypeFilterTabs<T extends string>({
   items,
   value,
   onChange,
   "aria-label": ariaLabel,
+  tablistRef,
+  matchHeight,
 }: {
-  items: { key: ChannelFilterKey; label: string; icon?: typeof Phone }[];
-  value: ChannelFilterKey;
-  onChange: (next: ChannelFilterKey) => void;
+  items: { key: T; label: string; icon?: TabIcon }[];
+  value: T;
+  onChange: (next: T) => void;
   "aria-label"?: string;
+  tablistRef?: Ref<HTMLDivElement>;
+  matchHeight?: number;
 }) {
   return (
-    <Stack
-      direction="row"
-      spacing={1.25}
+    <Box
+      ref={tablistRef}
+      role="tablist"
+      aria-label={ariaLabel}
       sx={{
-        alignItems: "center",
-        alignSelf: "flex-start",
+        display: "inline-flex",
+        alignItems: "stretch",
+        boxSizing: "border-box",
+        height: matchHeight ? `${matchHeight}px` : "auto",
+        p: "3px",
+        borderRadius: "10px",
+        bgcolor: "#F1F5F9",
+        border: "1px solid #E2E8F0",
         maxWidth: "100%",
+        overflowX: "auto",
+        "&::-webkit-scrollbar": { display: "none" },
+        scrollbarWidth: "none",
       }}
     >
-      <Box
-        role="tablist"
-        aria-label={ariaLabel}
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          p: "3px",
-          borderRadius: "10px",
-          bgcolor: "#F1F5F9",
-          border: "1px solid #E2E8F0",
-          maxWidth: "100%",
-          overflowX: "auto",
-          "&::-webkit-scrollbar": { display: "none" },
-          scrollbarWidth: "none",
-        }}
-      >
-        {items.map((item) => {
-          const selected = value === item.key;
-          const Icon = item.icon;
-          return (
-            <Box
-              key={item.key}
-              component="button"
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => onChange(item.key)}
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 0.75,
-                flexShrink: 0,
-                minWidth: 72,
-                px: 1.6,
-                py: 0.7,
-                border: 0,
-                borderRadius: "8px",
-                bgcolor: selected ? "primary.main" : "transparent",
-                color: selected ? "#FFFFFF" : "#64748B",
-                boxShadow: selected ? "0 1px 2px rgb(47 114 185 / 0.28)" : "none",
-                fontFamily: "inherit",
-                fontSize: "var(--font-size-body)",
-                fontWeight: selected ? 650 : 550,
-                lineHeight: 1.25,
-                cursor: "pointer",
-                transition:
-                  "background-color 140ms ease, color 140ms ease, box-shadow 140ms ease",
-                "&:hover": {
-                  color: selected ? "#FFFFFF" : "#1C2A6B",
-                  bgcolor: selected ? "primary.main" : "rgb(255 255 255 / 0.7)",
-                },
-              }}
-            >
-              {Icon ? <Icon size={14} strokeWidth={2.25} aria-hidden /> : null}
-              {item.label}
-            </Box>
-          );
-        })}
-      </Box>
-    </Stack>
+      {items.map((item) => {
+        const selected = value === item.key;
+        const Icon = item.icon;
+        return (
+          <Box
+            key={item.key}
+            component="button"
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(item.key)}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 0.75,
+              flexShrink: 0,
+              alignSelf: "stretch",
+              minWidth: 72,
+              px: 1.6,
+              py: 0.7,
+              border: 0,
+              borderRadius: "8px",
+              bgcolor: selected ? "primary.main" : "transparent",
+              color: selected ? "#FFFFFF" : "#64748B",
+              boxShadow: selected ? "0 1px 2px rgb(47 114 185 / 0.28)" : "none",
+              fontFamily: "inherit",
+              fontSize: "var(--font-size-body)",
+              fontWeight: selected ? 650 : 550,
+              lineHeight: 1.25,
+              cursor: "pointer",
+              transition:
+                "background-color 140ms ease, color 140ms ease, box-shadow 140ms ease",
+              "&:hover": {
+                color: selected ? "#FFFFFF" : "#1C2A6B",
+                bgcolor: selected ? "primary.main" : "rgb(255 255 255 / 0.7)",
+              },
+            }}
+          >
+            {Icon ? <Icon size={14} strokeWidth={2.25} aria-hidden /> : null}
+            {item.label}
+          </Box>
+        );
+      })}
+    </Box>
   );
 }
 
@@ -224,18 +242,53 @@ function StatusFilterBar({
 const CALLS_PER_PAGE = 10;
 
 export function CallsWorkspace() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const view: WorkspaceView = searchParams.get("view") === "queue" ? "queue" : "activity";
+
   const [filter, setFilter] = useState<FilterKey>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("all");
   const [selectedId, setSelectedId] = useState("");
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
+  const typeTabsRef = useRef<HTMLDivElement>(null);
+  const [matchedTabsHeight, setMatchedTabsHeight] = useState<number>();
+
+  useLayoutEffect(() => {
+    if (view !== "activity") {
+      setMatchedTabsHeight(undefined);
+      return;
+    }
+    const el = typeTabsRef.current;
+    if (!el) return;
+
+    const syncHeight = () => {
+      const next = Math.round(el.getBoundingClientRect().height);
+      setMatchedTabsHeight((prev) => (prev === next ? prev : next));
+    };
+
+    syncHeight();
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [view, channelFilter]);
+
+  function setView(next: WorkspaceView) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "queue") params.set("view", "queue");
+    else params.delete("view");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   const { data, isUninitialized, isLoading, isFetching, isError } = useGetCallsQuery({
     page: page + 1,
     pageSize,
     status: filter === "all" ? undefined : filter,
     channel: channelFilter === "all" ? undefined : channelFilter,
-  });
+  }, { skip: view !== "activity" });
 
   const showSkeleton = !isError && (isUninitialized || isLoading || isFetching);
 
@@ -412,43 +465,71 @@ export function CallsWorkspace() {
 
   return (
     <Stack spacing={2}>
-      <Stack spacing={1.25}>
-        <Box>
-          <Typography
-            sx={{
-              fontSize: { xs: 24, lg: 26 },
-              fontWeight: 700,
-              letterSpacing: "-0.02em",
-              color: "text.primary",
-              lineHeight: 1.2,
-            }}
-          >
-            Calls, texts, and transcripts
-          </Typography>
-          <Typography
-            sx={{
-              display: { xs: "none", lg: "block" },
-              mt: 0.5,
-              fontSize: "var(--font-size-body)",
-              color: "#6B7280",
-              lineHeight: 1.45,
-            }}
-          >
-            Track outreach calls and texts. Filter by type or status. Times in America/New_York (EDT).
-          </Typography>
-        </Box>
-        <TypeFilterTabs
-          aria-label="Filter by type"
-          items={channelFilters}
-          value={channelFilter}
-          onChange={(next) => {
-            setChannelFilter(next);
-            setPage(0);
-            setSelectedId("");
-            setMobileOpenId(null);
+      <Box>
+        <Typography
+          sx={{
+            fontSize: { xs: 24, lg: 26 },
+            fontWeight: 700,
+            letterSpacing: "-0.02em",
+            color: "text.primary",
+            lineHeight: 1.2,
           }}
+        >
+          Calls and texts
+        </Typography>
+        <Typography
+          sx={{
+            display: { xs: "none", lg: "block" },
+            mt: 0.5,
+            fontSize: "var(--font-size-body)",
+            color: "#6B7280",
+            lineHeight: 1.45,
+            maxWidth: 640,
+          }}
+        >
+          {view === "queue"
+            ? "Manage the live outbound queue — processing, waiting, paused, and scheduled."
+            : "Track outreach history and transcripts. Filter by type or status. Times in America/New_York (EDT)."}
+        </Typography>
+      </Box>
+
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.25}
+        sx={{
+          alignItems: { xs: "stretch", sm: "center" },
+          justifyContent: "space-between",
+        }}
+      >
+        {view === "activity" ? (
+          <TypeFilterTabs
+            aria-label="Filter by type"
+            items={channelFilters}
+            value={channelFilter}
+            tablistRef={typeTabsRef}
+            onChange={(next) => {
+              setChannelFilter(next);
+              setPage(0);
+              setSelectedId("");
+              setMobileOpenId(null);
+            }}
+          />
+        ) : (
+          <Box sx={{ flex: 1 }} />
+        )}
+        <TypeFilterTabs
+          aria-label="Workspace view"
+          items={workspaceViews}
+          value={view}
+          onChange={setView}
+          matchHeight={view === "activity" ? matchedTabsHeight : undefined}
         />
       </Stack>
+
+      {view === "queue" ? <CallQueueWorkspace embedded /> : null}
+
+      {view === "activity" ? (
+      <>
 
       <Box
         sx={{
@@ -726,6 +807,8 @@ export function CallsWorkspace() {
           </Box>
         ) : null}
       </Stack>
+      </>
+      ) : null}
     </Stack>
   );
 }

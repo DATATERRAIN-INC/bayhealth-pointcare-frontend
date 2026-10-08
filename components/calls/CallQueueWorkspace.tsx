@@ -231,7 +231,6 @@ function QueueStatusLine({
         flexWrap: "wrap",
         columnGap: 1.5,
         rowGap: 0.5,
-        mt: 1,
       }}
     >
       {parts.map((part, index) => (
@@ -580,7 +579,7 @@ function QueueListRow({
   );
 }
 
-export function CallQueueWorkspace() {
+export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   const [detailsItem, setDetailsItem] = useState<QueueCallItem | null>(null);
   const [processingPage, setProcessingPage] = useState(0);
@@ -719,52 +718,72 @@ export function CallQueueWorkspace() {
     }
   }
 
+  const refreshButton = (
+    <IconButton
+      aria-label="Refresh queue"
+      onClick={() => void refreshQueue()}
+      disabled={refreshing}
+      sx={{
+        flexShrink: 0,
+        width: 36,
+        height: 36,
+        border: "1px solid #E5E9EF",
+        borderRadius: "10px",
+        color: "#1D5F9A",
+        bgcolor: "#FFFFFF",
+        "&:hover": { bgcolor: "#F3F8FD" },
+        "& svg": refreshing
+          ? { animation: "queue-refresh-spin 0.8s linear infinite" }
+          : undefined,
+        "@keyframes queue-refresh-spin": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
+      }}
+    >
+      <RefreshCw size={16} strokeWidth={2} />
+    </IconButton>
+  );
+
   return (
     <Stack spacing={2} sx={{ minHeight: 0 }}>
-      <Stack
-        direction="row"
-        spacing={1.5}
-        sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
-      >
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontSize: 22, fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>
-            Call queue
-          </Typography>
-          <Typography sx={{ mt: 0.4, color: "text.secondary" }}>
-            Manage outbound calls waiting to be placed, currently processing, or paused.
-          </Typography>
+      {embedded ? (
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "center", justifyContent: "space-between" }}
+        >
           <QueueStatusLine
             queuedCount={queuedCount}
             inProgressCount={inProgressCount}
             pausedCount={pausedCount}
           />
-        </Box>
-        <IconButton
-          aria-label="Refresh queue"
-          onClick={() => void refreshQueue()}
-          disabled={refreshing}
-          sx={{
-            flexShrink: 0,
-            mt: 0.25,
-            width: 36,
-            height: 36,
-            border: "1px solid #E5E9EF",
-            borderRadius: "10px",
-            color: "#1D5F9A",
-            bgcolor: "#FFFFFF",
-            "&:hover": { bgcolor: "#F3F8FD" },
-            "& svg": refreshing
-              ? { animation: "queue-refresh-spin 0.8s linear infinite" }
-              : undefined,
-            "@keyframes queue-refresh-spin": {
-              from: { transform: "rotate(0deg)" },
-              to: { transform: "rotate(360deg)" },
-            },
-          }}
+          {refreshButton}
+        </Stack>
+      ) : (
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
         >
-          <RefreshCw size={16} strokeWidth={2} />
-        </IconButton>
-      </Stack>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography sx={{ fontSize: 22, fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>
+              Call queue
+            </Typography>
+            <Typography sx={{ mt: 0.4, color: "text.secondary" }}>
+              Manage outbound calls waiting to be placed, currently processing, or paused.
+            </Typography>
+            <Box sx={{ mt: 1 }}>
+              <QueueStatusLine
+                queuedCount={queuedCount}
+                inProgressCount={inProgressCount}
+                pausedCount={pausedCount}
+              />
+            </Box>
+          </Box>
+          <Box sx={{ mt: 0.25 }}>{refreshButton}</Box>
+        </Stack>
+      )}
 
       {actionError ? (
         <Alert severity="error" onClose={() => setActionError("")}>

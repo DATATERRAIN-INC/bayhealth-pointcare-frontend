@@ -125,7 +125,7 @@ export function TranscriptBody({
   return (
     <Stack spacing={1.75}>
       {call.messages.map((line, index) => {
-        const fromPatient = line.speaker === "Patient";
+        const fromPatient = line.fromPatient;
         return (
           <Box
             key={`${index}-${line.speaker}`}
