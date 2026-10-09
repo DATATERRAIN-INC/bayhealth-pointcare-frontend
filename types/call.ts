@@ -33,6 +33,8 @@ export interface CallApiRecord {
   /** Signed or API URL for the call audio (often .wav). */
   recording_url?: string;
   recording?: string;
+  live_agent_recording_url?: string;
+  liveAgentRecordingUrl?: string;
   message_count?: number;
   created_at?: string;
   updated_at?: string;
@@ -52,11 +54,14 @@ export interface CallTranscriptResponse {
   transcript: TranscriptApiLine[];
   recording_url?: string;
   recording?: string;
+  live_agent_recording_url?: string;
+  liveAgentRecordingUrl?: string;
 }
 
 export interface CallTranscriptPayload {
   transcript: TranscriptLine[];
   recordingUrl: string | null;
+  liveAgentRecordingUrl: string | null;
 }
 
 export interface CallsListResponse {

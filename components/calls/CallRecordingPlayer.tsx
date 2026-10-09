@@ -1,16 +1,29 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { Box, Skeleton, Typography } from "@mui/material";
-import { Volume2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Box,
+  Skeleton,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { ChevronDown, Volume2 } from "lucide-react";
 import {
   fetchRecordingBlobUrl,
   recordingNeedsAuthFetch,
   resolveRecordingUrl,
 } from "@/lib/api/callRecording";
 
-export function CallRecordingPlayer({ url }: { url: string | null | undefined }) {
-  const labelId = useId();
+export function CallRecordingPlayer({
+  url,
+  label = "AI Call recording",
+}: {
+  url: string | null | undefined;
+  label?: string;
+}) {
   const trimmed = url?.trim() ?? "";
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,21 +76,11 @@ export function CallRecordingPlayer({ url }: { url: string | null | undefined })
   if (!trimmed) return null;
 
   return (
-    <Box
-      sx={{
-        mb: 2,
-        px: 1.5,
-        py: 1.35,
-        borderRadius: "10px",
-        border: "1px solid #D5E2F0",
-        bgcolor: "#F8FAFC",
-      }}
-    >
-      <StackLabel id={labelId} />
+    <Box>
       {loading ? (
-        <Skeleton variant="rounded" height={40} sx={{ mt: 1, bgcolor: "#E9EEF4", borderRadius: "8px" }} />
+        <Skeleton variant="rounded" height={40} sx={{ bgcolor: "#E9EEF4", borderRadius: "8px" }} />
       ) : error ? (
-        <Typography sx={{ mt: 1, fontSize: "var(--font-size-body)", color: "#D92D20" }}>
+        <Typography sx={{ fontSize: "var(--font-size-body)", color: "#D92D20" }}>
           Could not load this recording. Try again or contact support if it persists.
         </Typography>
       ) : audioSrc ? (
@@ -86,11 +89,10 @@ export function CallRecordingPlayer({ url }: { url: string | null | undefined })
           controls
           preload="metadata"
           src={audioSrc}
-          aria-labelledby={labelId}
+          aria-label={label}
           sx={{
             display: "block",
             width: "100%",
-            mt: 1,
             height: 40,
           }}
         />
@@ -99,13 +101,71 @@ export function CallRecordingPlayer({ url }: { url: string | null | undefined })
   );
 }
 
-function StackLabel({ id }: { id: string }) {
+function RecordingAccordion({
+  title,
+  url,
+  defaultExpanded = false,
+}: {
+  title: string;
+  url: string;
+  defaultExpanded?: boolean;
+}) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-      <Volume2 size={16} strokeWidth={2.25} color="#1D5F9A" aria-hidden />
-      <Typography id={id} component="span" sx={{ fontSize: "var(--font-size-body)", fontWeight: 650, color: "text.primary" }}>
-        Call recording
-      </Typography>
-    </Box>
+    <Accordion
+      defaultExpanded={defaultExpanded}
+      disableGutters
+      elevation={0}
+      sx={{
+        mb: 0,
+        border: "1px solid #D5E2F0",
+        borderRadius: "10px !important",
+        bgcolor: "#F8FAFC",
+        "&:before": { display: "none" },
+        "&.Mui-expanded": { margin: 0 },
+        overflow: "hidden",
+      }}
+    >
+      <AccordionSummary
+        expandIcon={<ChevronDown size={18} strokeWidth={2.25} color="#64748B" />}
+        sx={{
+          minHeight: 48,
+          px: 1.5,
+          py: 0,
+          "& .MuiAccordionSummary-content": {
+            my: 1.25,
+            alignItems: "center",
+            gap: 0.75,
+          },
+        }}
+      >
+        <Volume2 size={16} strokeWidth={2.25} color="#1D5F9A" aria-hidden />
+        <Typography sx={{ fontSize: "var(--font-size-body)", fontWeight: 650, color: "text.primary" }}>
+          {title}
+        </Typography>
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: 1.5, pt: 0, pb: 1.5 }}>
+        <CallRecordingPlayer url={url} label={title} />
+      </AccordionDetails>
+    </Accordion>
+  );
+}
+
+/** Renders AI/call and live-agent recordings in titled accordions when URLs are present. */
+export function CallRecordingsList({
+  recordingUrl,
+  liveAgentRecordingUrl,
+}: {
+  recordingUrl?: string | null;
+  liveAgentRecordingUrl?: string | null;
+}) {
+  const callUrl = recordingUrl?.trim() ?? "";
+  const liveAgentUrl = liveAgentRecordingUrl?.trim() ?? "";
+  if (!callUrl && !liveAgentUrl) return null;
+
+  return (
+    <Stack spacing={1.25} sx={{ mb: 2 }}>
+      {callUrl ? <RecordingAccordion title="AI Call recording" url={callUrl} /> : null}
+      {liveAgentUrl ? <RecordingAccordion title="Live agent recording" url={liveAgentUrl} /> : null}
+    </Stack>
   );
 }

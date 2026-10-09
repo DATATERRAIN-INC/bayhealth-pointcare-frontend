@@ -27,6 +27,8 @@ export interface OutreachCall {
   retellCallId: string;
   /** Playable recording URL from the calls API (when recording is enabled). */
   recordingUrl: string | null;
+  /** Live-agent leg recording URL from the calls API. */
+  liveAgentRecordingUrl: string | null;
   messages: TranscriptLine[];
 }
 

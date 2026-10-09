@@ -20,7 +20,7 @@ import { History, ListOrdered, MessageSquareText, Phone, type LucideProps } from
 import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
 import { TablePager } from "@/components/shared/TablePager";
 import { CallQueueWorkspace } from "@/components/calls/CallQueueWorkspace";
-import { CallRecordingPlayer } from "@/components/calls/CallRecordingPlayer";
+import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
 import {
   ChannelChip,
   DESKTOP_PANEL_HEIGHT,
@@ -323,7 +323,9 @@ export function CallsWorkspace() {
   } = useGetCallTranscriptQuery(transcriptCall?.retellCallId ?? "", {
     skip:
       !transcriptCall?.retellCallId ||
-      (!transcriptCall.hasTranscript && !transcriptCall.recordingUrl),
+      (!transcriptCall.hasTranscript &&
+        !transcriptCall.recordingUrl &&
+        !transcriptCall.liveAgentRecordingUrl),
   });
 
   function withTranscript(call: OutreachCall | undefined): OutreachCall | undefined {
@@ -331,11 +333,14 @@ export function CallsWorkspace() {
     const transcriptLines = transcriptPayload?.transcript ?? [];
     const recordingUrl =
       call.recordingUrl || transcriptPayload?.recordingUrl || null;
+    const liveAgentRecordingUrl =
+      call.liveAgentRecordingUrl || transcriptPayload?.liveAgentRecordingUrl || null;
     return {
       ...call,
       messages: transcriptLines,
       messageCount: transcriptLines.length || call.messageCount,
       recordingUrl,
+      liveAgentRecordingUrl,
     };
   }
 
@@ -346,7 +351,11 @@ export function CallsWorkspace() {
   }
 
   function transcriptLabel(call: OutreachCall): string {
-    const available = call.hasTranscript || call.messages.length > 0 || Boolean(call.recordingUrl);
+    const available =
+      call.hasTranscript ||
+      call.messages.length > 0 ||
+      Boolean(call.recordingUrl) ||
+      Boolean(call.liveAgentRecordingUrl);
     if (call.id === selected?.id && available) return "Viewing";
     if (available) return "View";
     if (call.channel === "call" && call.status === "in_progress") return "After call ends";
@@ -711,7 +720,10 @@ export function CallsWorkspace() {
           paged.map((call) => {
             const open = mobileOpenId === call.id;
             const transcriptReady =
-              call.hasTranscript || call.messages.length > 0 || Boolean(call.recordingUrl);
+              call.hasTranscript ||
+              call.messages.length > 0 ||
+              Boolean(call.recordingUrl) ||
+              Boolean(call.liveAgentRecordingUrl);
             return (
               <Box
                 key={call.id}
@@ -748,8 +760,13 @@ export function CallsWorkspace() {
                       border: "1px solid #D5E2F0",
                     }}
                   >
-                    {call.channel === "call" && (withTranscript(call)?.recordingUrl ?? call.recordingUrl) ? (
-                      <CallRecordingPlayer url={withTranscript(call)?.recordingUrl ?? call.recordingUrl} />
+                    {call.channel === "call" ? (
+                      <CallRecordingsList
+                        recordingUrl={withTranscript(call)?.recordingUrl ?? call.recordingUrl}
+                        liveAgentRecordingUrl={
+                          withTranscript(call)?.liveAgentRecordingUrl ?? call.liveAgentRecordingUrl
+                        }
+                      />
                     ) : null}
                     <TranscriptBody
                       call={withTranscript(call) ?? call}
