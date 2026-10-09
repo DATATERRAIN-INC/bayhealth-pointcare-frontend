@@ -28,7 +28,13 @@ import {
 import { ColumnHeaderFilter } from "@/components/shared/ColumnHeaderFilter";
 import { RecordActions, type ActionsMenuItem } from "@/components/shared/RecordActions";
 import { Button } from "@/components/ui/Button";
-import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
+import {
+  dataGridViewportHeight,
+  TABLE_HEADER_COLOR,
+  TABLE_HEADER_HEIGHT,
+  TABLE_ROW_HEIGHT,
+  TABLE_VISIBLE_PAGE_ROWS,
+} from "@/components/shared/AppTable";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { TablePager } from "@/components/shared/TablePager";
 import { useStartOutboundCallMutation } from "@/lib/api/callsApi";
@@ -43,6 +49,8 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { elevation } from "@/lib/theme/tokens";
 
 const PATIENTS_PER_PAGE = 10;
+/** Always size the grid for 10 visible rows, even when Rows per page is 20/50. */
+const PATIENTS_GRID_HEIGHT = dataGridViewportHeight();
 
 type CallUiPhase = "idle" | "calling" | "success";
 
@@ -445,12 +453,7 @@ export function Patient() {
         border: "1px solid #E5E9EF",
         borderRadius: "10px",
         boxShadow: elevation.floatingPanel,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-        height: "100%",
+        overflow: "visible",
       }}
     >
       <Stack
@@ -567,7 +570,7 @@ export function Patient() {
         onClose={() => setDetailPatient(null)}
       />
 
-      <Stack spacing={1.25} sx={{ display: { xs: "flex", md: "none" }, flex: 1, minHeight: 0, overflowY: "auto", p: 1.5 }}>
+      <Stack spacing={1.25} sx={{ display: { xs: "flex", md: "none" }, p: 1.5 }}>
         {isLoading ? (
           Array.from({ length: 4 }, (_, index) => (
             <Skeleton key={`patient-card-skeleton-${index}`} variant="rounded" height={96} sx={{ bgcolor: "#E9EEF4", borderRadius: "12px" }} />
@@ -665,13 +668,7 @@ export function Patient() {
       </Stack>
 
       {isDesktopTable ? (
-        <Box
-          sx={{
-            width: "100%",
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
+        <Box sx={{ width: "100%", height: PATIENTS_GRID_HEIGHT }}>
           <DataGrid
             rows={isError ? [] : patients}
             columns={columns}
@@ -689,8 +686,8 @@ export function Patient() {
             disableColumnMenu
             disableColumnFilter
             disableColumnSelector
-            rowHeight={64}
-            columnHeaderHeight={48}
+            rowHeight={TABLE_ROW_HEIGHT}
+            columnHeaderHeight={TABLE_HEADER_HEIGHT}
             slots={{
               noRowsOverlay: () => (
                 <Stack sx={{ height: "100%", alignItems: "center", justifyContent: "center", px: 2 }}>
@@ -705,8 +702,11 @@ export function Patient() {
               width: "100%",
               height: "100%",
               fontSize: "var(--font-size-body)",
-              "& .MuiDataGrid-main": { minHeight: 0 },
-              "& .MuiDataGrid-virtualScroller": { overflowY: "auto" },
+              "& .MuiDataGrid-main": { overflow: "hidden" },
+              // Keep viewport at 10 rows; only scroll inside when Rows per page > 10.
+              "& .MuiDataGrid-virtualScroller": {
+                overflowY: pageSize > TABLE_VISIBLE_PAGE_ROWS ? "auto" : "hidden",
+              },
               "& .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeader": {
                 bgcolor: TABLE_HEADER_COLOR,
               },

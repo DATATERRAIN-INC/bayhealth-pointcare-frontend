@@ -1,23 +1,25 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Box,
   Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
-  Skeleton,
   Stack,
   Typography,
 } from "@mui/material";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import type { OutreachChannel } from "@/data/gapCalls";
-import { formatCallDuration, patientOutreachLabel, type PatientRecord } from "@/data/gapPatients";
-import { elevation } from "@/lib/theme/tokens";
 import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
+import { TranscriptBody, TranscriptSkeleton } from "@/components/calls/CallTranscriptPanel";
+import type { OutreachCall, OutreachChannel } from "@/data/gapCalls";
+import { formatCallDuration, patientOutreachLabel, type PatientRecord } from "@/data/gapPatients";
 import { useGetCallTranscriptQuery } from "@/lib/api/callsApi";
+import { elevation } from "@/lib/theme/tokens";
 
+/** Shared transcript body used by Patients actions and View details — same as Calls and texts. */
 export function OutreachTranscriptPanel({
   active,
   retellCallId,
@@ -31,34 +33,33 @@ export function OutreachTranscriptPanel({
   const { data, isLoading, isError, isFetching } = useGetCallTranscriptQuery(retellCallId.trim(), {
     skip: !active || !canFetch,
   });
-  const lines = data?.transcript ?? [];
+
   const recordingUrl = data?.recordingUrl ?? null;
   const liveAgentRecordingUrl = data?.liveAgentRecordingUrl ?? null;
-  const loading =
-    (isLoading || isFetching) && lines.length === 0 && !recordingUrl && !liveAgentRecordingUrl;
+  const lines = data?.transcript ?? [];
+  const loading = (isLoading || isFetching) && lines.length === 0;
+  const hasRecordings = Boolean(recordingUrl?.trim() || liveAgentRecordingUrl?.trim());
 
-  if (loading) {
-    return (
-      <Stack spacing={1.25}>
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton
-            key={`outreach-transcript-skeleton-${index}`}
-            variant="rounded"
-            height={52}
-            sx={{ bgcolor: "#E9EEF4", borderRadius: "10px", maxWidth: index % 2 === 0 ? "88%" : "72%" }}
-          />
-        ))}
-      </Stack>
-    );
-  }
-
-  if (isError) {
-    return (
-      <EmptyMessage
-        text={channel === "text" ? "Could not load this text thread." : "Could not load this transcript."}
-      />
-    );
-  }
+  const call = useMemo<OutreachCall>(
+    () => ({
+      id: retellCallId || "transcript",
+      callNumber: 0,
+      patientName: "",
+      channel,
+      status: null,
+      started: "",
+      duration: "—",
+      dateLabel: "",
+      windowLabel: "",
+      hasTranscript: lines.length > 0,
+      messageCount: lines.length,
+      retellCallId,
+      recordingUrl,
+      liveAgentRecordingUrl,
+      messages: lines,
+    }),
+    [channel, lines, liveAgentRecordingUrl, recordingUrl, retellCallId],
+  );
 
   if (!canFetch) {
     return (
@@ -72,56 +73,18 @@ export function OutreachTranscriptPanel({
     );
   }
 
-  if (lines.length === 0 && !recordingUrl && !liveAgentRecordingUrl) {
-    return (
-      <EmptyMessage
-        text={channel === "text" ? "No messages for this text." : "No transcript for this call."}
-      />
-    );
+  if (loading && !hasRecordings) {
+    return <TranscriptSkeleton includeRecordings />;
   }
 
   return (
-    <Stack spacing={1.75}>
-      {channel === "call" ? (
-        <CallRecordingsList
-          recordingUrl={recordingUrl}
-          liveAgentRecordingUrl={liveAgentRecordingUrl}
-        />
-      ) : null}
-      {lines.map((line, index) => {
-        const fromPatient = line.fromPatient;
-        return (
-          <Box
-            key={`${index}-${line.speaker}`}
-            sx={{ alignSelf: fromPatient ? "flex-end" : "flex-start", maxWidth: "90%" }}
-          >
-            <Typography
-              sx={{
-                mb: 0.5,
-                fontSize: "var(--font-size-body)",
-                fontWeight: 500,
-                color: "#8B93A7",
-                textAlign: fromPatient ? "right" : "left",
-              }}
-            >
-              {line.time ? `${line.speaker} · ${line.time}` : line.speaker}
-            </Typography>
-            <Box
-              sx={{
-                px: 1.5,
-                py: 1.15,
-                borderRadius: "10px",
-                bgcolor: fromPatient ? "#F3F4F6" : "#EAF3FB",
-                color: "text.primary",
-                fontSize: "var(--font-size-body)",
-                lineHeight: 1.45,
-              }}
-            >
-              {line.text}
-            </Box>
-          </Box>
-        );
-      })}
+    <Stack spacing={0}>
+      <CallRecordingsList
+        channel={channel}
+        recordingUrl={recordingUrl}
+        liveAgentRecordingUrl={liveAgentRecordingUrl}
+      />
+      <TranscriptBody call={call} loading={loading} error={isError} />
     </Stack>
   );
 }

@@ -271,6 +271,54 @@ function mapTranscriptLine(line: TranscriptApiLine): TranscriptLine {
   };
 }
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function transcriptLinesFrom(source: unknown): TranscriptApiLine[] {
+  const record = asObject(source);
+  if (!record) return [];
+  const transcript = record.transcript;
+  if (!Array.isArray(transcript)) return [];
+  return transcript as TranscriptApiLine[];
+}
+
+/** Normalize list / detail / transcript envelopes into one payload with both recording URLs. */
+export function mapCallTranscriptPayload(
+  response: CallTranscriptResponse | CallsListResponse | CallApiRecord[] | unknown,
+): CallTranscriptPayload {
+  const candidates: unknown[] = [];
+  if (Array.isArray(response)) {
+    candidates.push(...response);
+  } else {
+    const record = asObject(response);
+    if (record) {
+      candidates.push(record);
+      const results = record.results;
+      if (Array.isArray(results) && results[0]) candidates.unshift(results[0]);
+      const data = asObject(record.data);
+      if (data) candidates.unshift(data);
+    }
+  }
+
+  let recordingUrl = recordingUrlFromResponse(response);
+  let liveAgentRecordingUrl = liveAgentRecordingUrlFromResponse(response);
+  let rawLines: TranscriptApiLine[] = transcriptLinesFrom(response);
+
+  for (const candidate of candidates) {
+    if (!recordingUrl) recordingUrl = pickRecordingUrl(candidate);
+    if (!liveAgentRecordingUrl) liveAgentRecordingUrl = pickLiveAgentRecordingUrl(candidate);
+    if (rawLines.length === 0) rawLines = transcriptLinesFrom(candidate);
+  }
+
+  return {
+    transcript: rawLines.map(mapTranscriptLine),
+    recordingUrl: recordingUrl || null,
+    liveAgentRecordingUrl: liveAgentRecordingUrl || null,
+  };
+}
+
 export const callsApi = createApi({
   reducerPath: "callsApi",
   baseQuery: baseQueryWithReauth,
@@ -351,21 +399,8 @@ export const callsApi = createApi({
     }),
     getCallTranscript: builder.query<CallTranscriptPayload, string>({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
-      transformResponse: (response: CallTranscriptResponse | CallsListResponse | CallApiRecord[]) => {
-        const recordingUrl = recordingUrlFromResponse(response) || null;
-        const liveAgentRecordingUrl = liveAgentRecordingUrlFromResponse(response) || null;
-        if (Array.isArray(response)) {
-          return { transcript: [], recordingUrl, liveAgentRecordingUrl };
-        }
-        if ("transcript" in response && Array.isArray(response.transcript)) {
-          return {
-            transcript: response.transcript.map(mapTranscriptLine),
-            recordingUrl,
-            liveAgentRecordingUrl,
-          };
-        }
-        return { transcript: [], recordingUrl, liveAgentRecordingUrl };
-      },
+      transformResponse: (response: CallTranscriptResponse | CallsListResponse | CallApiRecord[]) =>
+        mapCallTranscriptPayload(response),
     }),
     setCallPaused: builder.mutation<unknown, { id: number | string; paused: boolean }>({
       query: ({ id, paused }) => ({

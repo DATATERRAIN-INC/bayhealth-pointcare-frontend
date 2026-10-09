@@ -35,6 +35,7 @@ export interface CallApiRecord {
   recording?: string;
   live_agent_recording_url?: string;
   liveAgentRecordingUrl?: string;
+  transcript?: TranscriptApiLine[];
   message_count?: number;
   created_at?: string;
   updated_at?: string;

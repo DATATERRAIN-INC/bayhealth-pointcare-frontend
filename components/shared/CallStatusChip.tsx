@@ -5,6 +5,7 @@ import { Box, Typography } from "@mui/material";
 export type CallStatus =
   | "queued"
   | "in_progress"
+  | "ongoing"
   | "completed"
   | "not_attended"
   | "callback"
@@ -15,6 +16,7 @@ export type CallStatus =
 const CALL_STATUS_META: Record<CallStatus, { label: string; color: string; bg: string }> = {
   queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
   in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
+  ongoing: { label: "Sent", color: "#178A45", bg: "#E5F6EC" },
   completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
   not_attended: { label: "Not attended", color: "#D14343", bg: "#FDECEC" },
   callback: { label: "Callback", color: "#B45309", bg: "#FEF3C7" },
@@ -32,6 +34,7 @@ export function parseCallStatus(value: unknown): CallStatus | null {
     status === "queued" ||
     status === "paused" ||
     status === "in_progress" ||
+    status === "ongoing" ||
     status === "completed" ||
     status === "not_attended" ||
     status === "callback" ||
