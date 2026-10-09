@@ -7,7 +7,6 @@ import {
 } from "@/lib/api/callRecording";
 import { patientsApi } from "@/lib/api/patientsApi";
 import { callsApi, type CallsPage } from "@/lib/api/callsApi";
-import { parseCallStatus, type CallStatus } from "@/components/shared/CallStatusChip";
 import type { OutreachCall, TranscriptLine } from "@/data/gapCalls";
 import type { CallTranscriptPayload, TranscriptApiLine } from "@/types/call";
 import type {
@@ -71,17 +70,6 @@ function mapSmsTranscriptLine(line: TranscriptApiLine): TranscriptLine {
   };
 }
 
-function mapSmsStatus(value: string | undefined): CallStatus | null {
-  const parsed = parseCallStatus(value);
-  if (parsed) return parsed;
-  const status = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-  if (status === "complete" || status === "ended") return "completed";
-  return null;
-}
-
 export function mapSmsConversation(record: SmsConversationApiRecord): OutreachCall {
   const id = String(record.id);
   const chatId = record.chat_id?.trim() ?? "";
@@ -90,7 +78,8 @@ export function mapSmsConversation(record: SmsConversationApiRecord): OutreachCa
     callNumber: Number(record.id) || 0,
     patientName: record.patient_name?.trim() || "Unknown patient",
     channel: "text",
-    status: mapSmsStatus(record.status),
+    // Text rows always show Sent (green); ignore API status variants.
+    status: "ongoing",
     started: formatClock(record.created_at),
     duration: "—",
     dateLabel: formatDateLabel(record.created_at),
