@@ -2,7 +2,12 @@ import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
 import { parseCallStatus, type CallStatus } from "@/components/shared/CallStatusChip";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
-import { pickRecordingUrl, recordingUrlFromResponse } from "@/lib/api/callRecording";
+import {
+  liveAgentRecordingUrlFromResponse,
+  pickLiveAgentRecordingUrl,
+  pickRecordingUrl,
+  recordingUrlFromResponse,
+} from "@/lib/api/callRecording";
 import type {
   CallApiRecord,
   CallTranscriptPayload,
@@ -247,6 +252,7 @@ export function mapApiCall(record: CallApiRecord): OutreachCall {
     messageCount: record.message_count ?? 0,
     retellCallId: record.retell_call_id?.trim() ?? "",
     recordingUrl: pickRecordingUrl(record) || null,
+    liveAgentRecordingUrl: pickLiveAgentRecordingUrl(record) || null,
     messages: [],
   };
 }
@@ -347,16 +353,18 @@ export const callsApi = createApi({
       query: (retellCallId) => `/calls/?retell_call_id=${encodeURIComponent(retellCallId)}`,
       transformResponse: (response: CallTranscriptResponse | CallsListResponse | CallApiRecord[]) => {
         const recordingUrl = recordingUrlFromResponse(response) || null;
+        const liveAgentRecordingUrl = liveAgentRecordingUrlFromResponse(response) || null;
         if (Array.isArray(response)) {
-          return { transcript: [], recordingUrl };
+          return { transcript: [], recordingUrl, liveAgentRecordingUrl };
         }
         if ("transcript" in response && Array.isArray(response.transcript)) {
           return {
             transcript: response.transcript.map(mapTranscriptLine),
             recordingUrl,
+            liveAgentRecordingUrl,
           };
         }
-        return { transcript: [], recordingUrl };
+        return { transcript: [], recordingUrl, liveAgentRecordingUrl };
       },
     }),
     setCallPaused: builder.mutation<unknown, { id: number | string; paused: boolean }>({
