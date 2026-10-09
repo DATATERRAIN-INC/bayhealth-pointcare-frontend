@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useLayoutEffect,
@@ -17,7 +17,12 @@ import {
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { History, ListOrdered, MessageSquareText, Phone, type LucideProps } from "lucide-react";
-import { TABLE_HEADER_COLOR } from "@/components/shared/AppTable";
+import {
+  TABLE_HEADER_COLOR,
+  TABLE_HEADER_HEIGHT,
+  TABLE_ROW_HEIGHT,
+  TABLE_VISIBLE_PAGE_ROWS,
+} from "@/components/shared/AppTable";
 import { TablePager } from "@/components/shared/TablePager";
 import { CallQueueWorkspace } from "@/components/calls/CallQueueWorkspace";
 import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
@@ -34,6 +39,7 @@ import {
   type OutreachStatus,
 } from "@/data/gapCalls";
 import { useGetCallTranscriptQuery, useGetCallsQuery } from "@/lib/api/callsApi";
+import { useGetSmsConversationsQuery, useGetSmsTranscriptQuery } from "@/lib/api/smsApi";
 import { elevation } from "@/lib/theme/tokens";
 
 type WorkspaceView = "activity" | "queue";
@@ -255,22 +261,17 @@ export function CallsWorkspace() {
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
   const typeTabsRef = useRef<HTMLDivElement>(null);
   const [matchedTabsHeight, setMatchedTabsHeight] = useState<number>();
+  const activityTabsHeight = view === "activity" ? matchedTabsHeight : undefined;
 
   useLayoutEffect(() => {
-    if (view !== "activity") {
-      setMatchedTabsHeight(undefined);
-      return;
-    }
+    if (view !== "activity") return;
     const el = typeTabsRef.current;
     if (!el) return;
 
-    const syncHeight = () => {
+    const observer = new ResizeObserver(() => {
       const next = Math.round(el.getBoundingClientRect().height);
       setMatchedTabsHeight((prev) => (prev === next ? prev : next));
-    };
-
-    syncHeight();
-    const observer = new ResizeObserver(syncHeight);
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [view, channelFilter]);
@@ -283,25 +284,50 @@ export function CallsWorkspace() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
-  const { data, isUninitialized, isLoading, isFetching, isError } = useGetCallsQuery({
-    page: page + 1,
-    pageSize,
-    status: filter === "all" ? undefined : filter,
-    channel: channelFilter === "all" ? undefined : channelFilter,
-  }, { skip: view !== "activity" });
+  const isTextView = channelFilter === "text";
+  const activityActive = view === "activity";
+
+  const callsQuery = useGetCallsQuery(
+    {
+      page: page + 1,
+      pageSize,
+      status: filter === "all" ? undefined : filter,
+      channel: channelFilter === "call" ? "call" : undefined,
+    },
+    { skip: !activityActive || isTextView },
+  );
+
+  const smsQuery = useGetSmsConversationsQuery(
+    { page: page + 1, pageSize },
+    { skip: !activityActive || !isTextView },
+  );
+
+  const data = isTextView ? smsQuery.data : callsQuery.data;
+  const isUninitialized = isTextView ? smsQuery.isUninitialized : callsQuery.isUninitialized;
+  const isLoading = isTextView ? smsQuery.isLoading : callsQuery.isLoading;
+  const isFetching = isTextView ? smsQuery.isFetching : callsQuery.isFetching;
+  const isError = isTextView ? smsQuery.isError : callsQuery.isError;
 
   const showSkeleton = !isError && (isUninitialized || isLoading || isFetching);
 
   const apiRows = useMemo(() => data?.results ?? [], [data?.results]);
-  // Client-side channel filter as a fallback if the API ignores `channel`.
+  // Client-side channel filter as a fallback if the API ignores `channel` (calls only).
   const paged = useMemo(() => {
-    if (channelFilter === "all") return apiRows;
+    if (isTextView || channelFilter === "all") return apiRows;
     return apiRows.filter((row) => row.channel === channelFilter);
-  }, [apiRows, channelFilter]);
-  const rowCount = channelFilter === "all" || paged.length === apiRows.length ? (data?.count ?? 0) : paged.length;
+  }, [apiRows, channelFilter, isTextView]);
+  const rowCount =
+    isTextView || channelFilter === "all" || paged.length === apiRows.length
+      ? (data?.count ?? 0)
+      : paged.length;
   const fullListLoaded =
-    filter === "all" && channelFilter === "all" && apiRows.length > 0 && apiRows.length === (data?.count ?? 0);
+    !isTextView &&
+    filter === "all" &&
+    channelFilter === "all" &&
+    apiRows.length > 0 &&
+    apiRows.length === (data?.count ?? 0);
   const filterCounts = useMemo(() => {
+    if (isTextView) return undefined;
     const counts: Partial<Record<FilterKey, number>> = { all: rowCount || undefined };
     if (fullListLoaded) {
       counts.completed = apiRows.filter((call) => call.status === "completed").length;
@@ -312,27 +338,49 @@ export function CallsWorkspace() {
       counts[filter] = rowCount;
     }
     return counts;
-  }, [apiRows, filter, fullListLoaded, rowCount]);
+  }, [apiRows, filter, fullListLoaded, isTextView, rowCount]);
   const selected = paged.find((call) => call.id === selectedId);
   const mobileCall = paged.find((call) => call.id === mobileOpenId);
-  const transcriptCall = mobileCall?.retellCallId ? mobileCall : selected?.retellCallId ? selected : undefined;
+  const focusCall = mobileCall ?? selected;
+  const callTranscriptTarget =
+    focusCall?.channel !== "text" && focusCall?.retellCallId ? focusCall : undefined;
+  const smsTranscriptTarget =
+    focusCall?.channel === "text" && focusCall.chatId ? focusCall : undefined;
+
   const {
-    data: transcriptPayload,
-    isLoading: transcriptLoading,
-    isError: transcriptError,
-  } = useGetCallTranscriptQuery(transcriptCall?.retellCallId ?? "", {
+    data: callTranscriptPayload,
+    isLoading: callTranscriptLoading,
+    isError: callTranscriptError,
+  } = useGetCallTranscriptQuery(callTranscriptTarget?.retellCallId ?? "", {
     skip:
-      !transcriptCall?.retellCallId ||
-      (!transcriptCall.hasTranscript &&
-        !transcriptCall.recordingUrl &&
-        !transcriptCall.liveAgentRecordingUrl),
+      !callTranscriptTarget?.retellCallId ||
+      (!callTranscriptTarget.hasTranscript &&
+        !callTranscriptTarget.recordingUrl &&
+        !callTranscriptTarget.liveAgentRecordingUrl),
   });
 
+  const {
+    data: smsTranscriptPayload,
+    isLoading: smsTranscriptLoading,
+    isError: smsTranscriptError,
+  } = useGetSmsTranscriptQuery(smsTranscriptTarget?.chatId ?? "", {
+    skip: !smsTranscriptTarget?.chatId,
+  });
+
+  const transcriptPayload = smsTranscriptTarget ? smsTranscriptPayload : callTranscriptPayload;
+  const transcriptLoading = smsTranscriptTarget ? smsTranscriptLoading : callTranscriptLoading;
+  const transcriptError = smsTranscriptTarget ? smsTranscriptError : callTranscriptError;
+  const transcriptCall = smsTranscriptTarget ?? callTranscriptTarget;
+
   function withTranscript(call: OutreachCall | undefined): OutreachCall | undefined {
-    if (!call || call.retellCallId !== transcriptCall?.retellCallId) return call;
+    if (!call || !transcriptCall) return call;
+    const isSmsMatch = Boolean(call.chatId) && call.chatId === transcriptCall.chatId;
+    const isCallMatch =
+      Boolean(call.retellCallId) && call.retellCallId === transcriptCall.retellCallId;
+    if (!isSmsMatch && !isCallMatch) return call;
+
     const transcriptLines = transcriptPayload?.transcript ?? [];
-    const recordingUrl =
-      call.recordingUrl || transcriptPayload?.recordingUrl || null;
+    const recordingUrl = call.recordingUrl || transcriptPayload?.recordingUrl || null;
     const liveAgentRecordingUrl =
       call.liveAgentRecordingUrl || transcriptPayload?.liveAgentRecordingUrl || null;
     return {
@@ -346,6 +394,15 @@ export function CallsWorkspace() {
 
   const viewed = withTranscript(selected);
 
+  function isActiveTranscript(call: OutreachCall | undefined): boolean {
+    if (!call || !transcriptCall) return false;
+    if (call.chatId && transcriptCall.chatId) return call.chatId === transcriptCall.chatId;
+    if (call.retellCallId && transcriptCall.retellCallId) {
+      return call.retellCallId === transcriptCall.retellCallId;
+    }
+    return call.id === transcriptCall.id;
+  }
+
   function itemLabel(call: OutreachCall): string {
     return call.channel === "text" ? `Text #${call.callNumber}` : `Call #${call.callNumber}`;
   }
@@ -353,6 +410,7 @@ export function CallsWorkspace() {
   function transcriptLabel(call: OutreachCall): string {
     const available =
       call.hasTranscript ||
+      Boolean(call.chatId) ||
       call.messages.length > 0 ||
       Boolean(call.recordingUrl) ||
       Boolean(call.liveAgentRecordingUrl);
@@ -363,15 +421,19 @@ export function CallsWorkspace() {
   }
 
   function emptyMessage() {
-    if (isError) return "Could not load outreach activity. Check the API connection and try again.";
+    if (isError) {
+      return isTextView
+        ? "Could not load text conversations. Check the API connection and try again."
+        : "Could not load outreach activity. Check the API connection and try again.";
+    }
     if (channelFilter === "call") return filter === "all" ? "No calls yet." : "No calls in this status.";
-    if (channelFilter === "text") return filter === "all" ? "No texts yet." : "No texts in this status.";
+    if (channelFilter === "text") return "No texts yet.";
     if (filter === "all") return "No calls or texts yet.";
     return "No activity in this status.";
   }
 
-  const columns = useMemo<GridColDef<OutreachCall>[]>(
-    () => [
+  const columns = useMemo<GridColDef<OutreachCall>[]>(() => {
+    const cols: GridColDef<OutreachCall>[] = [
       {
         field: "patientName",
         headerName: "Patient",
@@ -397,27 +459,39 @@ export function CallsWorkspace() {
         sortable: false,
         renderCell: (params) => <ChannelChip channel={params.row.channel} />,
       },
-      {
-        field: "status",
-        headerName: "Status",
-        flex: 0.9,
-        minWidth: 120,
-        sortable: false,
-        renderCell: (params) => <CallStatusChip status={params.row.status} />,
-      },
-      {
-        field: "started",
-        headerName: "Started",
-        flex: 0.8,
-        minWidth: 110,
-        sortable: false,
-        renderCell: (params) => (
+    ];
+
+    cols.push({
+      field: "status",
+      headerName: "Status",
+      flex: 0.9,
+      minWidth: 120,
+      sortable: false,
+      renderCell: (params) => <CallStatusChip status={params.row.status} />,
+    });
+
+    cols.push({
+      field: "started",
+      headerName: "Started",
+      flex: isTextView ? 1.1 : 0.8,
+      minWidth: isTextView ? 140 : 110,
+      sortable: false,
+      renderCell: (params) => (
+        <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: "var(--font-size-body)", color: "text.primary", whiteSpace: "nowrap" }}>
             {params.row.started}
           </Typography>
-        ),
-      },
-      {
+          {isTextView ? (
+            <Typography noWrap sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", mt: 0.15 }}>
+              {params.row.dateLabel}
+            </Typography>
+          ) : null}
+        </Box>
+      ),
+    });
+
+    if (!isTextView) {
+      cols.push({
         field: "duration",
         headerName: "Duration",
         flex: 0.7,
@@ -428,49 +502,51 @@ export function CallsWorkspace() {
             {params.row.duration}
           </Typography>
         ),
+      });
+    }
+
+    cols.push({
+      field: "transcript",
+      headerName: isTextView ? "Messages" : "Transcript",
+      flex: 0.9,
+      minWidth: 120,
+      sortable: false,
+      renderCell: (params) => {
+        const label = transcriptLabel(params.row);
+        const isLink = label === "Viewing" || label === "View";
+        return (
+          <Typography
+            component={isLink ? "button" : "span"}
+            type={isLink ? "button" : undefined}
+            onClick={
+              isLink
+                ? () => {
+                    setSelectedId(params.row.id);
+                  }
+                : undefined
+            }
+            sx={{
+              p: 0,
+              border: 0,
+              bgcolor: "transparent",
+              fontFamily: "inherit",
+              fontSize: "var(--font-size-body)",
+              fontWeight: isLink ? 600 : 500,
+              color: isLink ? "primary.main" : "#8B93A7",
+              cursor: isLink ? "pointer" : "default",
+              textAlign: "left",
+            }}
+          >
+            {label}
+          </Typography>
+        );
       },
-      {
-        field: "transcript",
-        headerName: "Transcript",
-        flex: 0.9,
-        minWidth: 120,
-        sortable: false,
-        renderCell: (params) => {
-          const label = transcriptLabel(params.row);
-          const isLink = label === "Viewing" || label === "View";
-          return (
-            <Typography
-              component={isLink ? "button" : "span"}
-              type={isLink ? "button" : undefined}
-              onClick={
-                isLink
-                  ? () => {
-                      setSelectedId(params.row.id);
-                    }
-                  : undefined
-              }
-              sx={{
-                p: 0,
-                border: 0,
-                bgcolor: "transparent",
-                fontFamily: "inherit",
-                fontSize: "var(--font-size-body)",
-                fontWeight: isLink ? 600 : 500,
-                color: isLink ? "primary.main" : "#8B93A7",
-                cursor: isLink ? "pointer" : "default",
-                textAlign: "left",
-              }}
-            >
-              {label}
-            </Typography>
-          );
-        },
-      },
-    ],
+    });
+
+    return cols;
     // itemLabel/transcriptLabel close over selected; refresh when selection changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedId],
-  );
+  }, [selectedId, isTextView]);
 
   return (
     <Stack spacing={2}>
@@ -518,6 +594,7 @@ export function CallsWorkspace() {
             tablistRef={typeTabsRef}
             onChange={(next) => {
               setChannelFilter(next);
+              if (next === "text") setFilter("all");
               setPage(0);
               setSelectedId("");
               setMobileOpenId(null);
@@ -531,7 +608,7 @@ export function CallsWorkspace() {
           items={workspaceViews}
           value={view}
           onChange={setView}
-          matchHeight={view === "activity" ? matchedTabsHeight : undefined}
+          matchHeight={activityTabsHeight}
         />
       </Stack>
 
@@ -559,15 +636,17 @@ export function CallsWorkspace() {
             borderRadius: "10px",
           }}
         >
-          <StatusFilterBar
-            status={filter}
-            statusCounts={filterCounts}
-            onStatusChange={(next) => {
-              setFilter(next);
-              setPage(0);
-              setSelectedId("");
-            }}
-          />
+          {!isTextView ? (
+            <StatusFilterBar
+              status={filter}
+              statusCounts={filterCounts}
+              onStatusChange={(next) => {
+                setFilter(next);
+                setPage(0);
+                setSelectedId("");
+              }}
+            />
+          ) : null}
 
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <DataGrid
@@ -580,8 +659,8 @@ export function CallsWorkspace() {
               disableColumnFilter
               disableColumnSelector
               hideFooter
-              rowHeight={64}
-              columnHeaderHeight={48}
+              rowHeight={TABLE_ROW_HEIGHT}
+              columnHeaderHeight={TABLE_HEADER_HEIGHT}
               getRowClassName={(params) => (params.id === selectedId ? "calls-row--selected" : "")}
               slots={{
                 noRowsOverlay: () => (
@@ -604,7 +683,10 @@ export function CallsWorkspace() {
                 height: "100%",
                 fontSize: "var(--font-size-body)",
                 "& .MuiDataGrid-main": { minHeight: 0 },
-                "& .MuiDataGrid-virtualScroller": { overflowY: "auto" },
+                // Viewport stays at 10 rows; scroll only when Rows per page loads more.
+                "& .MuiDataGrid-virtualScroller": {
+                  overflowY: pageSize > TABLE_VISIBLE_PAGE_ROWS ? "auto" : "hidden",
+                },
                 "& .MuiDataGrid-columnHeaders": {
                   position: "sticky",
                   top: 0,
@@ -669,7 +751,7 @@ export function CallsWorkspace() {
         {selected ? (
           <TranscriptPanel
             call={viewed}
-            loading={transcriptLoading && viewed?.retellCallId === transcriptCall?.retellCallId}
+            loading={transcriptLoading && isActiveTranscript(viewed)}
             error={transcriptError}
             onClose={() => setSelectedId("")}
           />
@@ -677,26 +759,28 @@ export function CallsWorkspace() {
       </Box>
 
       <Stack spacing={1.25} sx={{ display: { xs: "flex", lg: "none" } }}>
-        <Box
-          sx={{
-            ...surface,
-            px: 1.5,
-            pt: 1.4,
-            pb: 1.25,
-            borderColor: "#E8ECF1",
-            bgcolor: "#FAFBFC",
-          }}
-        >
-          <StatusFilterRow
-            value={filter}
-            counts={filterCounts}
-            onChange={(next) => {
-              setFilter(next);
-              setPage(0);
-              setMobileOpenId(null);
+        {!isTextView ? (
+          <Box
+            sx={{
+              ...surface,
+              px: 1.5,
+              pt: 1.4,
+              pb: 1.25,
+              borderColor: "#E8ECF1",
+              bgcolor: "#FAFBFC",
             }}
-          />
-        </Box>
+          >
+            <StatusFilterRow
+              value={filter}
+              counts={filterCounts}
+              onChange={(next) => {
+                setFilter(next);
+                setPage(0);
+                setMobileOpenId(null);
+              }}
+            />
+          </Box>
+        ) : null}
         {showSkeleton ? (
           <Stack spacing={1.5}>
             {Array.from({ length: Math.min(pageSize, 6) }, (_, index) => (
@@ -721,6 +805,7 @@ export function CallsWorkspace() {
             const open = mobileOpenId === call.id;
             const transcriptReady =
               call.hasTranscript ||
+              Boolean(call.chatId) ||
               call.messages.length > 0 ||
               Boolean(call.recordingUrl) ||
               Boolean(call.liveAgentRecordingUrl);
@@ -745,6 +830,7 @@ export function CallsWorkspace() {
                 </Stack>
                 <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>
                   {itemLabel(call)} · {call.started} EDT
+                  {isTextView && call.dateLabel ? ` · ${call.dateLabel}` : ""}
                   {call.channel === "call"
                     ? ` · ${call.status === "in_progress" ? "live" : call.duration}`
                     : ""}
@@ -760,18 +846,17 @@ export function CallsWorkspace() {
                       border: "1px solid #D5E2F0",
                     }}
                   >
-                    {call.channel === "call" ? (
-                      <CallRecordingsList
-                        recordingUrl={withTranscript(call)?.recordingUrl ?? call.recordingUrl}
-                        liveAgentRecordingUrl={
-                          withTranscript(call)?.liveAgentRecordingUrl ?? call.liveAgentRecordingUrl
-                        }
-                      />
-                    ) : null}
+                    <CallRecordingsList
+                      channel={call.channel}
+                      recordingUrl={withTranscript(call)?.recordingUrl ?? call.recordingUrl}
+                      liveAgentRecordingUrl={
+                        withTranscript(call)?.liveAgentRecordingUrl ?? call.liveAgentRecordingUrl
+                      }
+                    />
                     <TranscriptBody
                       call={withTranscript(call) ?? call}
-                      loading={transcriptLoading && call.retellCallId === transcriptCall?.retellCallId}
-                      error={transcriptError && call.retellCallId === transcriptCall?.retellCallId}
+                      loading={transcriptLoading && isActiveTranscript(call)}
+                      error={transcriptError && isActiveTranscript(call)}
                     />
                   </Box>
                 ) : null}

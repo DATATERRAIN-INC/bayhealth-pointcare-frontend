@@ -150,21 +150,25 @@ function RecordingAccordion({
   );
 }
 
-/** Renders AI/call and live-agent recordings in titled accordions when URLs are present. */
+/** Renders AI and live-agent recordings in titled accordions when URLs are present. */
 export function CallRecordingsList({
   recordingUrl,
   liveAgentRecordingUrl,
+  channel = "call",
 }: {
   recordingUrl?: string | null;
   liveAgentRecordingUrl?: string | null;
+  channel?: "call" | "text";
 }) {
   const callUrl = recordingUrl?.trim() ?? "";
   const liveAgentUrl = liveAgentRecordingUrl?.trim() ?? "";
   if (!callUrl && !liveAgentUrl) return null;
 
+  const aiTitle = channel === "text" ? "AI text recording" : "AI Call recording";
+
   return (
     <Stack spacing={1.25} sx={{ mb: 2 }}>
-      {callUrl ? <RecordingAccordion title="AI Call recording" url={callUrl} /> : null}
+      {callUrl ? <RecordingAccordion title={aiTitle} url={callUrl} /> : null}
       {liveAgentUrl ? <RecordingAccordion title="Live agent recording" url={liveAgentUrl} /> : null}
     </Stack>
   );

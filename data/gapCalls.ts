@@ -25,6 +25,8 @@ export interface OutreachCall {
   hasTranscript: boolean;
   messageCount: number;
   retellCallId: string;
+  /** AI SMS conversation id from `/api/ai-sms/conversations/`. */
+  chatId?: string;
   /** Playable recording URL from the calls API (when recording is enabled). */
   recordingUrl: string | null;
   /** Live-agent leg recording URL from the calls API. */

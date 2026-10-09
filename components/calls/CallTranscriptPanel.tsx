@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Skeleton, Stack, Typography } from "@mui/material";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
@@ -11,9 +11,57 @@ import {
 } from "@/data/gapCalls";
 import { CallStatusChip } from "@/components/shared/CallStatusChip";
 import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
+import { dataGridViewportHeight, TABLE_FOOTER_HEIGHT } from "@/components/shared/AppTable";
 import { elevation } from "@/lib/theme/tokens";
 
-export const DESKTOP_PANEL_HEIGHT = 640;
+/** Status filter bar approx. height — panel stays locked to a 10-row table viewport. */
+const CALLS_STATUS_FILTER_HEIGHT = 58;
+
+/** Fixed desktop calls/transcript panel height (10 visible rows), independent of Rows per page. */
+export const DESKTOP_PANEL_HEIGHT =
+  CALLS_STATUS_FILTER_HEIGHT +
+  dataGridViewportHeight({ withFooter: false }) +
+  TABLE_FOOTER_HEIGHT;
+
+export function TranscriptSkeleton({ includeRecordings = false }: { includeRecordings?: boolean }) {
+  return (
+    <Stack spacing={1.75} sx={{ width: "100%" }}>
+      {includeRecordings ? (
+        <Stack spacing={1.25} sx={{ mb: 0.5 }}>
+          <Skeleton variant="rounded" height={48} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
+          <Skeleton variant="rounded" height={48} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
+        </Stack>
+      ) : null}
+      {Array.from({ length: 4 }, (_, index) => (
+        <Box
+          key={`transcript-skeleton-${index}`}
+          sx={{
+            alignSelf: index % 2 === 0 ? "flex-start" : "flex-end",
+            width: "100%",
+            maxWidth: index % 2 === 0 ? "88%" : "72%",
+          }}
+        >
+          <Skeleton
+            variant="rounded"
+            width={96}
+            height={12}
+            sx={{
+              mb: 0.75,
+              bgcolor: "#E9EEF4",
+              borderRadius: "4px",
+              ml: index % 2 === 0 ? 0 : "auto",
+            }}
+          />
+          <Skeleton
+            variant="rounded"
+            height={52}
+            sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }}
+          />
+        </Box>
+      ))}
+    </Stack>
+  );
+}
 
 const surface = {
   bgcolor: "#FFFFFF",
@@ -91,20 +139,21 @@ export function TranscriptBody({
   loading?: boolean;
   error?: boolean;
 }) {
+  if (loading && call.messages.length === 0) {
+    const showRecordingSkeleton = !call.recordingUrl && !call.liveAgentRecordingUrl;
+    return <TranscriptSkeleton includeRecordings={showRecordingSkeleton} />;
+  }
+
   if (call.messages.length === 0) {
-    const message = loading
+    const message = error
       ? call.channel === "text"
-        ? "Loading messages…"
-        : "Loading transcript…"
-      : error
-        ? call.channel === "text"
-          ? "Could not load this text thread."
-          : "Could not load this transcript."
-        : call.channel === "call" && call.status === "in_progress"
-          ? "Transcript available after the call ends."
-          : call.channel === "text"
-            ? "No messages for this text."
-            : "No transcript for this call.";
+        ? "Could not load this text thread."
+        : "Could not load this transcript."
+      : call.channel === "call" && call.status === "in_progress"
+        ? "Transcript available after the call ends."
+        : call.channel === "text"
+          ? "No messages for this text."
+          : "No transcript for this call.";
     return (
       <Box
         sx={{
@@ -296,12 +345,11 @@ export function TranscriptPanel({
       </Stack>
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2 }}>
-        {call.channel === "call" ? (
-          <CallRecordingsList
-            recordingUrl={call.recordingUrl}
-            liveAgentRecordingUrl={call.liveAgentRecordingUrl}
-          />
-        ) : null}
+        <CallRecordingsList
+          channel={call.channel}
+          recordingUrl={call.recordingUrl}
+          liveAgentRecordingUrl={call.liveAgentRecordingUrl}
+        />
         <TranscriptBody call={call} loading={loading} error={error} />
       </Box>
 
@@ -321,7 +369,7 @@ export function TranscriptPanel({
           {call.messages.length > 0
             ? `End of transcript · ${call.messages.length} messages`
             : loading
-              ? "Loading transcript…"
+              ? "Loading…"
               : "Transcript pending"}
         </Typography>
         <Button
