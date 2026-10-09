@@ -44,7 +44,7 @@ import { elevation } from "@/lib/theme/tokens";
 
 type WorkspaceView = "activity" | "queue";
 type FilterKey = "all" | OutreachStatus;
-type ChannelFilterKey = "all" | OutreachChannel;
+type ChannelFilterKey = OutreachChannel;
 type TabIcon = ComponentType<LucideProps>;
 
 const filters: { key: FilterKey; label: string }[] = [
@@ -69,7 +69,6 @@ const channelFilters: {
   label: string;
   icon?: TabIcon;
 }[] = [
-  { key: "all", label: "All" },
   { key: "call", label: "Call", icon: Phone },
   { key: "text", label: "Text", icon: MessageSquareText },
 ];
@@ -254,7 +253,7 @@ export function CallsWorkspace() {
   const view: WorkspaceView = searchParams.get("view") === "queue" ? "queue" : "activity";
 
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("all");
+  const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("call");
   const [selectedId, setSelectedId] = useState("");
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -292,7 +291,7 @@ export function CallsWorkspace() {
       page: page + 1,
       pageSize,
       status: filter === "all" ? undefined : filter,
-      channel: channelFilter === "call" ? "call" : undefined,
+      channel: "call",
     },
     { skip: !activityActive || isTextView },
   );
@@ -313,17 +312,14 @@ export function CallsWorkspace() {
   const apiRows = useMemo(() => data?.results ?? [], [data?.results]);
   // Client-side channel filter as a fallback if the API ignores `channel` (calls only).
   const paged = useMemo(() => {
-    if (isTextView || channelFilter === "all") return apiRows;
-    return apiRows.filter((row) => row.channel === channelFilter);
-  }, [apiRows, channelFilter, isTextView]);
+    if (isTextView) return apiRows;
+    return apiRows.filter((row) => row.channel === "call");
+  }, [apiRows, isTextView]);
   const rowCount =
-    isTextView || channelFilter === "all" || paged.length === apiRows.length
-      ? (data?.count ?? 0)
-      : paged.length;
+    isTextView || paged.length === apiRows.length ? (data?.count ?? 0) : paged.length;
   const fullListLoaded =
     !isTextView &&
     filter === "all" &&
-    channelFilter === "all" &&
     apiRows.length > 0 &&
     apiRows.length === (data?.count ?? 0);
   const filterCounts = useMemo(() => {
@@ -426,10 +422,9 @@ export function CallsWorkspace() {
         ? "Could not load text conversations. Check the API connection and try again."
         : "Could not load outreach activity. Check the API connection and try again.";
     }
-    if (channelFilter === "call") return filter === "all" ? "No calls yet." : "No calls in this status.";
-    if (channelFilter === "text") return "No texts yet.";
-    if (filter === "all") return "No calls or texts yet.";
-    return "No activity in this status.";
+    if (isTextView) return "No texts yet.";
+    if (filter === "all") return "No calls yet.";
+    return "No calls in this status.";
   }
 
   const columns = useMemo<GridColDef<OutreachCall>[]>(() => {

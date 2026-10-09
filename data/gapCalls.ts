@@ -36,5 +36,5 @@ export interface OutreachCall {
 
 export const channelMeta: Record<OutreachChannel, { label: string; color: string; bg: string }> = {
   call: { label: "Call", color: "#1C4E8A", bg: "#E8F1FB" },
-  text: { label: "Text", color: "#0F6B4C", bg: "#E6F6EF" },
+  text: { label: "Text", color: "#1C4E8A", bg: "#E8F1FB" },
 };
