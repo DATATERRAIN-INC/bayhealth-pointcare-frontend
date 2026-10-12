@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Alert,
   Box,
@@ -37,13 +37,21 @@ function loginErrorMessage(error: unknown): string {
   return parseAuthApiError(error, "Could not sign in. Please try again.");
 }
 
+function readLoginSearchParams(): URLSearchParams {
+  if (typeof window === "undefined") return new URLSearchParams();
+  return new URLSearchParams(window.location.search);
+}
+
 export function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const nextPath = safeRedirectPath(searchParams.get("redirect") || searchParams.get("next"), "/dashboard");
+  const [nextPath] = useState(() => {
+    const params = readLoginSearchParams();
+    return safeRedirectPath(params.get("redirect") || params.get("next"), "/dashboard");
+  });
 
   const [successMessage] = useState(() => {
-    return safeStatusMessage(searchParams.get("message")) || consumeAuthStatusMessage();
+    const params = readLoginSearchParams();
+    return safeStatusMessage(params.get("message")) || consumeAuthStatusMessage();
   });
   const [toastOpen, setToastOpen] = useState(() => Boolean(successMessage));
 
