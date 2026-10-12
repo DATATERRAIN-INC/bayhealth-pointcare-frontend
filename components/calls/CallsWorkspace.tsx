@@ -643,6 +643,7 @@ export function CallsWorkspace() {
               loading={showSkeleton}
               getRowId={(row) => row.id}
               disableRowSelectionOnClick
+              disableColumnSorting
               disableColumnMenu
               disableColumnFilter
               disableColumnSelector
