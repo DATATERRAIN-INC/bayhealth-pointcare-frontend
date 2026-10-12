@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["mqtt"],
+  // Bundle the browser MQTT client; do not externalize (breaks client Turbopack builds).
+  transpilePackages: ["mqtt"],
 };
 
 export default nextConfig;
