@@ -35,7 +35,11 @@ function resolveConnect(mod: Record<string, unknown>): MqttConnect | null {
   return null;
 }
 
-/** Dynamic MQTT connect for the browser client bundle. */
+/**
+ * Dynamic MQTT connect for the browser client bundle.
+ * Import goes through next.config resolveAlias → mqtt/dist/mqtt.esm.js
+ * so Turbopack/Webpack resolve the same on Windows and Linux CI.
+ */
 export async function connectMqttClient(
   url: string,
   options: MqttConnectOptions,
