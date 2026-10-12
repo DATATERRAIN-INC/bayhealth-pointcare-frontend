@@ -15,6 +15,7 @@ import {
 import type { User } from "@/types/user";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppTopBar } from "@/components/layout/AppTopBar";
+import { NotificationMqttListener } from "@/components/notifications/NotificationMqttListener";
 import { AppLoadingFallback } from "@/components/shared/AppLoadingFallback";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
@@ -120,6 +121,7 @@ export function AppShell({ children }: AppShellProps) {
             onToggleSidebar={() => setSidebarOpen((open) => !open)}
           />
         </ErrorBoundary>
+        <NotificationMqttListener />
 
         <Box
           component="main"

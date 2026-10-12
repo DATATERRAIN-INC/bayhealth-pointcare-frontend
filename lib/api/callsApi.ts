@@ -81,6 +81,21 @@ function formatDateLabel(iso: string | null | undefined): string {
   }).format(date);
 }
 
+/** Date + time for the Calls and texts Started column (America/New_York). */
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: CALL_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function formatWindowLabel(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -244,7 +259,7 @@ export function mapApiCall(record: CallApiRecord): OutreachCall {
     patientName: record.patient_name?.trim() || "Unknown patient",
     channel,
     status: mapStatus(record.status),
-    started: formatClock(record.started_at),
+    started: formatDateTime(record.started_at),
     duration: channel === "text" ? "—" : formatDuration(record.duration_seconds),
     dateLabel: formatDateLabel(record.started_at),
     windowLabel: formatWindowLabel(record.started_at),
@@ -374,7 +389,10 @@ export const callsApi = createApi({
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => mapQueueCallsPage(response),
-      providesTags: [{ type: "Call", id: "QUEUE" }],
+      providesTags: [
+        { type: "Call", id: "QUEUE" },
+        { type: "Call", id: "STATUS_in_progress" },
+      ],
       keepUnusedDataFor: 120,
     }),
     getCallSummary: builder.query<CallSummary, void>({
@@ -394,7 +412,16 @@ export const callsApi = createApi({
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => mapQueueCallsPage(response),
-      providesTags: [{ type: "Call", id: "QUEUE_WAITING" }],
+      providesTags: (_result, _error, arg) => {
+        const statuses = String(arg.status)
+          .split(",")
+          .map((part) => part.trim().toLowerCase())
+          .filter(Boolean);
+        return [
+          { type: "Call" as const, id: "QUEUE_WAITING" },
+          ...statuses.map((status) => ({ type: "Call" as const, id: `STATUS_${status}` })),
+        ];
+      },
       keepUnusedDataFor: 120,
     }),
     getCallTranscript: builder.query<CallTranscriptPayload, string>({

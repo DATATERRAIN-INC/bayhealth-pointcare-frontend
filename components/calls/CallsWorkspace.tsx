@@ -468,20 +468,13 @@ export function CallsWorkspace() {
     cols.push({
       field: "started",
       headerName: "Started",
-      flex: isTextView ? 1.1 : 0.8,
-      minWidth: isTextView ? 140 : 110,
+      flex: 1.2,
+      minWidth: 170,
       sortable: false,
       renderCell: (params) => (
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: "var(--font-size-body)", color: "text.primary", whiteSpace: "nowrap" }}>
-            {params.row.started}
-          </Typography>
-          {isTextView ? (
-            <Typography noWrap sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", mt: 0.15 }}>
-              {params.row.dateLabel}
-            </Typography>
-          ) : null}
-        </Box>
+        <Typography sx={{ fontSize: "var(--font-size-body)", color: "text.primary", whiteSpace: "nowrap" }}>
+          {params.row.started}
+        </Typography>
       ),
     });
 
@@ -825,7 +818,6 @@ export function CallsWorkspace() {
                 </Stack>
                 <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>
                   {itemLabel(call)} · {call.started} EDT
-                  {isTextView && call.dateLabel ? ` · ${call.dateLabel}` : ""}
                   {call.channel === "call"
                     ? ` · ${call.status === "in_progress" ? "live" : call.duration}`
                     : ""}
