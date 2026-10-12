@@ -683,6 +683,7 @@ export function Patient() {
             }}
             pageSizeOptions={[10, 20, 50]}
             disableRowSelectionOnClick
+            disableColumnSorting
             disableColumnMenu
             disableColumnFilter
             disableColumnSelector
