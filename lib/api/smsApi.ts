@@ -44,6 +44,20 @@ function formatDateLabel(iso: string | null | undefined): string {
   }).format(date);
 }
 
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: CALL_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function formatWindowLabel(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -80,7 +94,7 @@ export function mapSmsConversation(record: SmsConversationApiRecord): OutreachCa
     channel: "text",
     // Text rows always show Sent (green); ignore API status variants.
     status: "ongoing",
-    started: formatClock(record.created_at),
+    started: formatDateTime(record.created_at),
     duration: "—",
     dateLabel: formatDateLabel(record.created_at),
     windowLabel: formatWindowLabel(record.created_at),

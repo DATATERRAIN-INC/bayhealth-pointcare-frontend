@@ -74,6 +74,19 @@ function mapSummary(response: unknown): NotificationSummary {
   return { unread, read };
 }
 
+function mapTopics(response: unknown): string[] {
+  const record = asRecord(response);
+  const result = asRecord(record?.result);
+  const candidates = [result?.data, record?.data, record?.topics, response];
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue;
+    return candidate
+      .filter((topic): topic is string => typeof topic === "string" && topic.trim().length > 0)
+      .map((topic) => topic.trim());
+  }
+  return [];
+}
+
 export const notificationsApi = createApi({
   reducerPath: "notificationsApi",
   baseQuery: baseQueryWithReauth,
@@ -102,6 +115,11 @@ export const notificationsApi = createApi({
       query: () => notificationsUrl("/api/notifications/summary/"),
       transformResponse: mapSummary,
       providesTags: [{ type: "Notification", id: "SUMMARY" }],
+    }),
+    getNotificationTopics: builder.query<string[], void>({
+      query: () => notificationsUrl("/api/notifications/get-topics/"),
+      transformResponse: mapTopics,
+      providesTags: [{ type: "Notification", id: "TOPICS" }],
     }),
     markNotificationRead: builder.mutation<unknown, number>({
       query: (id) => ({
@@ -176,6 +194,7 @@ export const notificationsApi = createApi({
 export const {
   useGetNotificationsQuery,
   useGetNotificationSummaryQuery,
+  useGetNotificationTopicsQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
 } = notificationsApi;
