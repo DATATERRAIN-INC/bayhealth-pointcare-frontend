@@ -1,26 +1,11 @@
 import type { NextConfig } from "next";
 
 /**
- * Point `mqtt` at the browser ESM file.
- * Turbopack (especially on Linux CI) often fails on mqtt's conditional "exports".
- * Use a package-relative path — absolute Windows paths break Turbopack.
+ * mqtt@5.x already declares browser exports → dist/mqtt.esm.js.
+ * Do not add turbopack.resolveAlias for `mqtt` (e.g. mqtt/dist/mqtt.esm.js):
+ * that import map breaks `next build` on AWS/Linux Turbopack with
+ * "Can't resolve 'mqtt'" even when the package is installed.
  */
-const mqttBrowserEntry = "mqtt/dist/mqtt.esm.js";
-
-const nextConfig: NextConfig = {
-  transpilePackages: ["mqtt"],
-  turbopack: {
-    resolveAlias: {
-      mqtt: mqttBrowserEntry,
-    },
-  },
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      mqtt: mqttBrowserEntry,
-    };
-    return config;
-  },
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

@@ -1,3 +1,5 @@
+import type { IClientOptions, MqttClient } from "mqtt";
+
 export type MqttConnectOptions = {
   clientId: string;
   username: string;
@@ -20,34 +22,32 @@ export type MqttClientHandle = {
   end(force?: boolean): void;
 };
 
-type MqttConnect = (url: string, options: MqttConnectOptions) => MqttClientHandle;
-
-function resolveConnect(mod: Record<string, unknown>): MqttConnect | null {
-  if (typeof mod.connect === "function") return mod.connect as MqttConnect;
-  const defaults = mod.default;
-  if (defaults && typeof defaults === "object") {
-    const nested = defaults as Record<string, unknown>;
-    if (typeof nested.connect === "function") {
-      return (nested.connect as MqttConnect).bind(defaults);
-    }
-  }
-  if (typeof defaults === "function") return defaults as MqttConnect;
-  return null;
-}
+type MqttModule = {
+  connect?: (brokerUrl: string, options?: IClientOptions) => MqttClient;
+  default?: {
+    connect?: (brokerUrl: string, options?: IClientOptions) => MqttClient;
+  };
+};
 
 /**
- * Dynamic MQTT connect for the browser client bundle.
- * Import goes through next.config resolveAlias → mqtt/dist/mqtt.esm.js
- * so Turbopack/Webpack resolve the same on Windows and Linux CI.
+ * Dynamic import keeps mqtt out of the initial client chunk.
+ * Do not add a Turbopack resolveAlias for `mqtt` — the package `exports.browser`
+ * already maps to `dist/mqtt.esm.js`. Aliasing to that path breaks AWS builds.
  */
 export async function connectMqttClient(
   url: string,
   options: MqttConnectOptions,
 ): Promise<MqttClientHandle> {
-  const mod = (await import("mqtt")) as Record<string, unknown>;
-  const connect = resolveConnect(mod);
-  if (!connect) {
+  const mqttMod = (await import("mqtt")) as MqttModule;
+  const connect =
+    mqttMod.connect ??
+    (mqttMod.default && typeof mqttMod.default.connect === "function"
+      ? mqttMod.default.connect.bind(mqttMod.default)
+      : null);
+
+  if (typeof connect !== "function") {
     throw new Error("mqtt.connect is not available");
   }
-  return connect(url, options);
+
+  return connect(url, options) as MqttClientHandle;
 }

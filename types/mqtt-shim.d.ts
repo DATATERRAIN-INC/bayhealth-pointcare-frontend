@@ -1,9 +1,5 @@
-declare module "mqtt" {
-  const mqtt: {
-    connect: (url: string, options?: Record<string, unknown>) => unknown;
-    default?: {
-      connect?: (url: string, options?: Record<string, unknown>) => unknown;
-    };
-  };
-  export = mqtt;
-}
+/**
+ * mqtt ships its own types (build/index.d.ts).
+ * Keep this file empty of Window globals — connection uses the npm package.
+ */
+export {};
