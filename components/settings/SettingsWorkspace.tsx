@@ -322,8 +322,8 @@ function toPayload(settings: CallingSettings): { payload: SettingsPayload } | { 
     return { error: "Enter a whole number of calls per run." };
   }
   const triggerCount = Number(settings.callTriggerCount);
-  if (!Number.isInteger(triggerCount) || triggerCount < 1) {
-    return { error: "Enter how many times a call should be triggered (1 or more)." };
+  if (!Number.isInteger(triggerCount) || triggerCount < 1 || triggerCount > 10) {
+    return { error: "Times to trigger call must be a whole number from 1 to 10." };
   }
   const smsTriggerAfter = Number(settings.smsTriggerAfterCalls);
   if (settings.textSmsEnabled) {
@@ -407,6 +407,17 @@ function minutesFromLabel(value: string): number | null {
   return hours * 60 + minutes;
 }
 
+/** e.g. 26 → "1 day 2 hours", 24 → "1 day", 5 → "5 hours" */
+function formatReminderDuration(hours: number): string {
+  if (!Number.isInteger(hours) || hours < 1) return "";
+  const days = Math.floor(hours / 24);
+  const remainder = hours % 24;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} day${days === 1 ? "" : "s"}`);
+  if (remainder > 0) parts.push(`${remainder} hour${remainder === 1 ? "" : "s"}`);
+  return parts.join(" ");
+}
+
 function windowSummary(settings: CallingSettings): string {
   const start = minutesFromLabel(settings.start);
   const end = minutesFromLabel(settings.end);
@@ -420,12 +431,15 @@ function windowSummary(settings: CallingSettings): string {
   if (diff <= 0) diff += 24 * 60;
   const hours = Math.round((diff / 60) * 10) / 10;
   const hourLabel = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
-  const reminderHours = settings.reminderTimeframeHours || "—";
+  const reminderValue = Number(settings.reminderTimeframeHours);
+  const reminderLabel =
+    formatReminderDuration(reminderValue) ||
+    (settings.reminderTimeframeHours ? `${settings.reminderTimeframeHours} hours` : "—");
   const smsPart = settings.textSmsEnabled
     ? ` Text/SMS is sent after ${settings.smsTriggerAfterCalls || "—"} not-attended call${settings.smsTriggerAfterCalls === "1" ? "" : "s"}.`
     : "";
   const status = settings.callsEnabled
-    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}. Missed calls are reminded after ${reminderHours} hour${reminderHours === "1" ? "" : "s"}.${smsPart}`
+    ? `Up to ${settings.maxCallsPerRun || "—"} calls are placed per run, and each patient call can be triggered up to ${settings.callTriggerCount || "—"} time${settings.callTriggerCount === "1" ? "" : "s"}. Missed calls are reminded after ${reminderLabel}.${smsPart}`
     : "Outreach calls are turned off.";
   return `Calls run ${settings.start.replace(/^0/, "")} – ${settings.end.replace(/^0/, "")} ${zone} (${hourLabel} hours). ${status} Calls outside this window wait until it opens.`;
 }
@@ -622,7 +636,18 @@ export function SettingsWorkspace() {
     if (timezones.some((zone) => zone.value === draft.timezone)) return [...timezones];
     return [{ value: draft.timezone, label: draft.timezone }, ...timezones];
   }, [draft.timezone]);
-  const callTriggerMax = Math.max(1, Number(draft.callTriggerCount) || 1);
+  const callTriggerMax = Math.min(10, Math.max(1, Number(draft.callTriggerCount) || 1));
+  const callTriggerError = useMemo(() => {
+    if (!draft.callTriggerCount.trim()) return "";
+    const value = Number(draft.callTriggerCount);
+    if (!Number.isInteger(value) || value < 1) {
+      return "Enter a whole number from 1 to 10.";
+    }
+    if (value > 10) {
+      return "Times to trigger call cannot be more than 10.";
+    }
+    return "";
+  }, [draft.callTriggerCount]);
   const smsTriggerError = useMemo(() => {
     if (!draft.textSmsEnabled || !draft.smsTriggerAfterCalls.trim()) return "";
     const value = Number(draft.smsTriggerAfterCalls);
@@ -630,10 +655,28 @@ export function SettingsWorkspace() {
       return "Enter a whole number of 1 or more.";
     }
     if (value > callTriggerMax) {
-      return `Must be less than or equal to times to trigger call (${draft.callTriggerCount || "—"}).`;
+      return `Must be less than or equal to times to trigger call (${callTriggerMax}).`;
     }
     return "";
-  }, [callTriggerMax, draft.callTriggerCount, draft.smsTriggerAfterCalls, draft.textSmsEnabled]);
+  }, [callTriggerMax, draft.smsTriggerAfterCalls, draft.textSmsEnabled]);
+  const reminderHoursError = useMemo(() => {
+    if (!draft.reminderTimeframeHours.trim()) return "";
+    const value = Number(draft.reminderTimeframeHours);
+    if (!Number.isInteger(value) || value < 1) {
+      return "Enter whole clock hours from 1 to 720.";
+    }
+    if (value > 720) {
+      return "Reminder hours cannot be more than 720 (30 days).";
+    }
+    return "";
+  }, [draft.reminderTimeframeHours]);
+  const reminderHoursHint = useMemo(() => {
+    if (reminderHoursError) return reminderHoursError;
+    const value = Number(draft.reminderTimeframeHours);
+    const duration = formatReminderDuration(value);
+    if (!duration) return "Enter hours (24 = 1 day, max 720 = 30 days).";
+    return `${value} clock hour${value === 1 ? "" : "s"} · ${duration}`;
+  }, [draft.reminderTimeframeHours, reminderHoursError]);
 
   function updateDraft(patch: Partial<CallingSettings>) {
     dirty.current = true;
@@ -834,8 +877,10 @@ export function SettingsWorkspace() {
                   type="number"
                   value={draft.callTriggerCount}
                   onChange={(event) => updateDraft({ callTriggerCount: event.target.value })}
+                  error={Boolean(callTriggerError)}
+                  helperText={callTriggerError || "Max 10"}
                   sx={fieldSx}
-                  slotProps={{ htmlInput: { min: 1, step: 1, inputMode: "numeric" } }}
+                  slotProps={{ htmlInput: { min: 1, max: 10, step: 1, inputMode: "numeric" } }}
                 />
               </Box>
               <Box>
@@ -846,6 +891,8 @@ export function SettingsWorkspace() {
                   type="number"
                   value={draft?.reminderTimeframeHours ?? ""}
                   onChange={(event) => updateDraft({ reminderTimeframeHours: event.target.value })}
+                  error={Boolean(reminderHoursError)}
+                  helperText={reminderHoursHint}
                   sx={fieldSx}
                   slotProps={{ htmlInput: { min: 1, max: 720, step: 1, inputMode: "numeric" } }}
                 />

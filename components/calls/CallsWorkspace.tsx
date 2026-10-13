@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -38,11 +39,26 @@ import {
   type OutreachChannel,
   type OutreachStatus,
 } from "@/data/gapCalls";
-import { useGetCallTranscriptQuery, useGetCallsQuery } from "@/lib/api/callsApi";
+import {
+  callQueueSubscriptionOptions,
+  useGetCallSummaryQuery,
+  useGetCallTranscriptQuery,
+  useGetCallsQuery,
+} from "@/lib/api/callsApi";
 import { useGetSmsConversationsQuery, useGetSmsTranscriptQuery } from "@/lib/api/smsApi";
 import { elevation } from "@/lib/theme/tokens";
 
 type WorkspaceView = "activity" | "queue";
+
+function queueHasItems(summary: {
+  in_progress: number;
+  queued: number;
+  scheduled: number;
+  paused: number;
+} | undefined): boolean {
+  if (!summary) return false;
+  return summary.in_progress + summary.queued + summary.scheduled + summary.paused > 0;
+}
 type FilterKey = "all" | OutreachStatus;
 type ChannelFilterKey = OutreachChannel;
 type TabIcon = ComponentType<LucideProps>;
@@ -251,7 +267,12 @@ export function CallsWorkspace() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const view: WorkspaceView = searchParams.get("view") === "queue" ? "queue" : "activity";
+  const viewParam = searchParams.get("view");
+  const viewExplicit = viewParam === "queue" || viewParam === "activity";
+  const view: WorkspaceView = viewParam === "queue" ? "queue" : "activity";
+  const didAutoSelectView = useRef(false);
+  // Hold skeleton until we know whether Queue should open by default (avoids Activity→Queue flash).
+  const [defaultViewReady, setDefaultViewReady] = useState(viewExplicit);
 
   const [filter, setFilter] = useState<FilterKey>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("call");
@@ -263,8 +284,13 @@ export function CallsWorkspace() {
   const [matchedTabsHeight, setMatchedTabsHeight] = useState<number>();
   const activityTabsHeight = view === "activity" ? matchedTabsHeight : undefined;
 
+  const { data: callSummary, isSuccess: summaryReady, isError: summaryError } = useGetCallSummaryQuery(
+    undefined,
+    callQueueSubscriptionOptions,
+  );
+
   useLayoutEffect(() => {
-    if (view !== "activity") return;
+    if (!defaultViewReady || view !== "activity") return;
     const el = typeTabsRef.current;
     if (!el) return;
 
@@ -274,18 +300,35 @@ export function CallsWorkspace() {
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [view, channelFilter]);
+  }, [defaultViewReady, view, channelFilter]);
 
   function setView(next: WorkspaceView) {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "queue") params.set("view", "queue");
-    else params.delete("view");
+    params.set("view", next);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
+  useEffect(() => {
+    if (viewExplicit) {
+      setDefaultViewReady(true);
+      return;
+    }
+    if (didAutoSelectView.current) return;
+    if (!summaryReady && !summaryError) return;
+    didAutoSelectView.current = true;
+    if (queueHasItems(callSummary)) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("view", "queue");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : `${pathname}?view=queue`, { scroll: false });
+      return;
+    }
+    setDefaultViewReady(true);
+  }, [callSummary, pathname, router, searchParams, summaryError, summaryReady, viewExplicit]);
+
   const isTextView = channelFilter === "text";
-  const activityActive = view === "activity";
+  const activityActive = defaultViewReady && view === "activity";
 
   const callsQuery = useGetCallsQuery(
     {
@@ -524,6 +567,62 @@ export function CallsWorkspace() {
     // itemLabel/transcriptLabel close over selected; refresh when selection changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, isTextView]);
+
+  if (!defaultViewReady) {
+    return (
+      <Stack spacing={2}>
+        <Box>
+          <Typography
+            sx={{
+              fontSize: { xs: 24, lg: 26 },
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              color: "text.primary",
+              lineHeight: 1.2,
+            }}
+          >
+            Calls and texts
+          </Typography>
+          <Skeleton
+            variant="text"
+            animation="wave"
+            width={420}
+            sx={{ display: { xs: "none", lg: "block" }, mt: 0.5, bgcolor: "#E9EEF4" }}
+          />
+        </Box>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.25}
+          sx={{ alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}
+        >
+          <Skeleton variant="rounded" animation="wave" width={168} height={40} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
+          <Skeleton variant="rounded" animation="wave" width={200} height={40} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
+        </Stack>
+        <Box
+          sx={{
+            ...surface,
+            height: { xs: 420, lg: DESKTOP_PANEL_HEIGHT },
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            p: 2,
+            gap: 1.5,
+          }}
+        >
+          <Skeleton variant="rounded" animation="wave" height={36} sx={{ bgcolor: "#E9EEF4", borderRadius: "8px" }} />
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton
+              key={`calls-default-view-skeleton-${index}`}
+              variant="rounded"
+              animation="wave"
+              height={52}
+              sx={{ bgcolor: "#E9EEF4", borderRadius: "8px" }}
+            />
+          ))}
+        </Box>
+      </Stack>
+    );
+  }
 
   return (
     <Stack spacing={2}>
