@@ -54,7 +54,8 @@ function NotificationsMenu({
   onClose: () => void;
 }) {
   const open = Boolean(anchorEl);
-  const { data: summary } = useGetNotificationSummaryQuery(undefined, { pollingInterval: 30000 });
+  // Live updates come from MQTT; no HTTP polling.
+  const { data: summary } = useGetNotificationSummaryQuery();
   const { data, isLoading, isFetching, isError } = useGetNotificationsQuery(
     { page: 1, pageSize: 10 },
     { skip: !open },
@@ -244,7 +245,8 @@ export function AppTopBar({ user, sidebarOpen, onToggleSidebar }: AppTopBarProps
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
-  const { data: notificationSummary } = useGetNotificationSummaryQuery(undefined, { pollingInterval: 30000 });
+  // Live updates come from MQTT; no HTTP polling.
+  const { data: notificationSummary } = useGetNotificationSummaryQuery();
   const unreadCount = notificationSummary?.unread ?? 0;
 
   function handleLogoutConfirm() {

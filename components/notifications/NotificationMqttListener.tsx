@@ -15,26 +15,29 @@ import type { AppDispatch, RootState } from "@/lib/store";
 export function NotificationMqttListener() {
   const dispatch = useDispatch<AppDispatch>();
   const store = useStore<RootState>();
-  const { data: topics, isLoading, isError, error, isUninitialized } = useGetNotificationTopicsQuery();
+  const { data: topics, isLoading, isError, error, isUninitialized, isSuccess } =
+    useGetNotificationTopicsQuery();
   const clientRef = useRef<MqttClientHandle | null>(null);
+  // Stable key so identical topic lists do not reconnect MQTT (avoids effect thrash).
+  const topicsKey = (topics ?? []).join("\n");
 
   useEffect(() => {
     const connectionUrl = getMqttBrokerUrl();
     const username = getMqttUsername();
     const password = getMqttPassword();
-    const allTopics = [...new Set((topics ?? []).map((topic) => topic.trim()).filter(Boolean))];
+    const allTopics = [
+      ...new Set(
+        topicsKey
+          .split("\n")
+          .map((topic) => topic.trim())
+          .filter(Boolean),
+      ),
+    ];
 
-    if (isUninitialized || isLoading || topics === undefined) {
+    if (isUninitialized || isLoading || !isSuccess) {
       if (isError) {
         console.warn("[mqtt] get-topics failed — cannot subscribe", error);
-      } else {
-        console.log("[mqtt] waiting for get-topics…");
       }
-      return;
-    }
-
-    if (isError && allTopics.length === 0) {
-      console.warn("[mqtt] get-topics failed — cannot subscribe", error);
       return;
     }
 
@@ -48,7 +51,7 @@ export function NotificationMqttListener() {
     }
 
     if (allTopics.length === 0) {
-      console.warn("[mqtt] no topics from get-topics", { topics });
+      console.warn("[mqtt] no topics from get-topics");
       return;
     }
 
@@ -92,11 +95,11 @@ export function NotificationMqttListener() {
           });
         });
 
-        client.on("message", (topic: string, payload: Uint8Array | string) => {
+        client.on("message", (_topic: string, payload: Uint8Array | string) => {
           if (cancelled) return;
           const raw =
             typeof payload === "string" ? payload : new TextDecoder().decode(payload);
-          console.log("[mqtt] message", topic, raw.slice(0, 240));
+          console.log("[mqtt] message", _topic, raw.slice(0, 240));
           handleMqttMessage(dispatch, store.getState, raw);
         });
 
@@ -123,7 +126,7 @@ export function NotificationMqttListener() {
       clientRef.current?.end(true);
       clientRef.current = null;
     };
-  }, [dispatch, store, topics, isLoading, isUninitialized, isError, error]);
+  }, [dispatch, store, topicsKey, isLoading, isUninitialized, isSuccess, isError, error]);
 
   return null;
 }

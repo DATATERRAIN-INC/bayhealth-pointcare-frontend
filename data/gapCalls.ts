@@ -1,6 +1,11 @@
 import type { CallStatus } from "@/components/shared/CallStatusChip";
 
-export type OutreachStatus = "completed" | "in_progress" | "not_attended" | "callback";
+export type OutreachStatus =
+  | "completed"
+  | "in_progress"
+  | "not_attended"
+  | "callback"
+  | "cancel";
 export type OutreachChannel = "call" | "text";
 
 export interface TranscriptLine {

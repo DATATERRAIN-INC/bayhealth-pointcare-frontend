@@ -195,7 +195,8 @@ export function Notifications() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const isRead = filter === "all" ? undefined : filter === "read";
 
-  const { data: summary } = useGetNotificationSummaryQuery(undefined, { pollingInterval: 30000 });
+  // Live updates come from MQTT; no HTTP polling.
+  const { data: summary } = useGetNotificationSummaryQuery();
   const { data, isUninitialized, isLoading, isError, isFetching } = useGetNotificationsQuery({
     page: page + 1,
     pageSize: PAGE_SIZE,
