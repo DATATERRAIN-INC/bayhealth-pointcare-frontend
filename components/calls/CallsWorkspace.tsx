@@ -53,6 +53,7 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "in_progress", label: "In progress" },
   { key: "callback", label: "Callback" },
   { key: "not_attended", label: "Not attended" },
+  { key: "cancel", label: "Cancelled" },
 ];
 
 const workspaceViews: {
@@ -317,24 +318,12 @@ export function CallsWorkspace() {
   }, [apiRows, isTextView]);
   const rowCount =
     isTextView || paged.length === apiRows.length ? (data?.count ?? 0) : paged.length;
-  const fullListLoaded =
-    !isTextView &&
-    filter === "all" &&
-    apiRows.length > 0 &&
-    apiRows.length === (data?.count ?? 0);
+  /** Only the active status tab shows a count, and only after the list request has settled. */
   const filterCounts = useMemo(() => {
     if (isTextView) return undefined;
-    const counts: Partial<Record<FilterKey, number>> = { all: rowCount || undefined };
-    if (fullListLoaded) {
-      counts.completed = apiRows.filter((call) => call.status === "completed").length;
-      counts.in_progress = apiRows.filter((call) => call.status === "in_progress").length;
-      counts.callback = apiRows.filter((call) => call.status === "callback").length;
-      counts.not_attended = apiRows.filter((call) => call.status === "not_attended").length;
-    } else if (filter !== "all") {
-      counts[filter] = rowCount;
-    }
-    return counts;
-  }, [apiRows, filter, fullListLoaded, isTextView, rowCount]);
+    if (isUninitialized || isLoading || isFetching) return undefined;
+    return { [filter]: data?.count ?? 0 } as Partial<Record<FilterKey, number>>;
+  }, [data?.count, filter, isFetching, isLoading, isTextView, isUninitialized]);
   const selected = paged.find((call) => call.id === selectedId);
   const mobileCall = paged.find((call) => call.id === mobileOpenId);
   const focusCall = mobileCall ?? selected;

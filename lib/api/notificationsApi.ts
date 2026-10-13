@@ -126,7 +126,7 @@ export const notificationsApi = createApi({
         url: notificationsUrl(`/api/notifications/${id}/mark-read/`),
         method: "POST",
       }),
-      invalidatesTags: [{ type: "Notification", id: "SUMMARY" }, { type: "Notification", id: "LIST" }],
+      // Optimistic cache + MQTT push update the badge/list — avoid refetching summary on every mark-read.
       async onQueryStarted(id, { dispatch, getState, queryFulfilled }) {
         let wasUnread = false;
         const patches = notificationsApi.util.selectCachedArgsForQuery(getState(), "getNotifications").map((args) =>
@@ -163,7 +163,7 @@ export const notificationsApi = createApi({
         url: notificationsUrl("/api/notifications/mark-all-read/"),
         method: "POST",
       }),
-      invalidatesTags: [{ type: "Notification", id: "SUMMARY" }, { type: "Notification", id: "LIST" }],
+      // Optimistic cache + MQTT push update the badge/list — avoid refetching summary on mark-all-read.
       async onQueryStarted(_arg, { dispatch, getState, queryFulfilled }) {
         const patches = notificationsApi.util.selectCachedArgsForQuery(getState(), "getNotifications").map((args) =>
           dispatch(
