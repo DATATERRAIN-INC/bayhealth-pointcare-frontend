@@ -79,9 +79,10 @@ export function patientOutreachLabel(patient: PatientRecord): string | null {
 
 export const DOCTORS = ["Dr. Alan Brooks", "Dr. Priya Shah"] as const;
 
-export function formatPatientDob(isoDate: string): string {
-  const date = parseIsoDate(isoDate);
-  if (!date) return isoDate;
+export function formatPatientDob(isoDate: string | null | undefined): string {
+  if (isoDate == null || !String(isoDate).trim()) return "—";
+  const date = parseIsoDate(String(isoDate));
+  if (!date) return String(isoDate);
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -94,8 +95,9 @@ export function formatPatientPhone(countryCode: string, phoneNumber: string): st
   return formatPhoneNumber(phoneNumber, countryCode);
 }
 
-export function parseIsoDate(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+export function parseIsoDate(value: string | null | undefined): Date | null {
+  if (value == null) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
   if (!match) return null;
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   if (Number.isNaN(date.getTime())) return null;
