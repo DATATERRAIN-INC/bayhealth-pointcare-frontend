@@ -1,33 +1,25 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "@/lib/api/baseQuery";
+import { getBaseUrl } from "@/lib/api/baseUrl";
 
-export type OutboundFormPayload = {
+export type PointCareCallPayload = {
   phone_number: string;
   name: string;
+  agent_number: string;
+  address: string;
 };
 
-function getFormFillerBaseUrl(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_FORM_FILLER_BASE_URL || "http://127.0.0.1:8001";
-  const trimmed = raw.trim().replace(/\/+$/, "");
-  if (!trimmed) return "http://127.0.0.1:8001";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed.replace(/^\/+/, "")}`;
+function pointCareUrl(path: string): string {
+  return `${getBaseUrl()}${path}`;
 }
 
 export const formFillerApi = createApi({
   reducerPath: "formFillerApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: getFormFillerBaseUrl(),
-    timeout: 20000,
-    prepareHeaders: (headers) => {
-      headers.set("Content-Type", "application/json");
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   endpoints: (builder) => ({
-    triggerOutbound: builder.mutation<unknown, OutboundFormPayload>({
+    triggerPointCareCall: builder.mutation<unknown, PointCareCallPayload>({
       query: (body) => ({
-        url: "/form-filler/outbound/",
+        url: pointCareUrl("/api/ai-pointcare/call/"),
         method: "POST",
         body,
       }),
@@ -35,4 +27,4 @@ export const formFillerApi = createApi({
   }),
 });
 
-export const { useTriggerOutboundMutation } = formFillerApi;
+export const { useTriggerPointCareCallMutation } = formFillerApi;
