@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { authApi } from "@/lib/api/authApi";
 import { callsApi } from "@/lib/api/callsApi";
+import { formFillerApi } from "@/lib/api/formFillerApi";
 import { patientsApi } from "@/lib/api/patientsApi";
 import { notificationsApi } from "@/lib/api/notificationsApi";
 import { settingsApi } from "@/lib/api/settingsApi";
@@ -14,6 +15,7 @@ export const store = configureStore({
     [settingsApi.reducerPath]: settingsApi.reducer,
     [notificationsApi.reducerPath]: notificationsApi.reducer,
     [smsApi.reducerPath]: smsApi.reducer,
+    [formFillerApi.reducerPath]: formFillerApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -23,6 +25,7 @@ export const store = configureStore({
       settingsApi.middleware,
       notificationsApi.middleware,
       smsApi.middleware,
+      formFillerApi.middleware,
     ),
 });
 
@@ -33,6 +36,7 @@ export function resetClientStore(): void {
   store.dispatch(settingsApi.util.resetApiState());
   store.dispatch(notificationsApi.util.resetApiState());
   store.dispatch(smsApi.util.resetApiState());
+  store.dispatch(formFillerApi.util.resetApiState());
 }
 
 export type RootState = ReturnType<typeof store.getState>;
