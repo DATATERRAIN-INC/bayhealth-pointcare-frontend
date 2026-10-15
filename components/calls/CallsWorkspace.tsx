@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useEffect,
@@ -14,10 +14,11 @@ import {
   Box,
   Skeleton,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { History, ListOrdered, MessageSquareText, Phone, type LucideProps } from "lucide-react";
+import { History, ListOrdered, MessageSquareText, Phone, Search, type LucideProps } from "lucide-react";
 import {
   TABLE_HEADER_COLOR,
   TABLE_HEADER_HEIGHT,
@@ -263,6 +264,20 @@ function StatusFilterBar({
 
 const CALLS_PER_PAGE = 10;
 
+const searchFieldSx = {
+  width: { xs: "100%", sm: 260 },
+  "& .MuiOutlinedInput-root": {
+    height: "40px !important",
+    minHeight: "40px !important",
+    borderRadius: "10px",
+    bgcolor: "#FFFFFF",
+    "& fieldset": { borderColor: "#E2E8F0" },
+    "&:hover fieldset": { borderColor: "#C5CAD6" },
+    "&.Mui-focused fieldset": { borderColor: "primary.main", borderWidth: 1 },
+  },
+  "& .MuiOutlinedInput-input": { py: 0, fontSize: "var(--font-size-body)" },
+} as const;
+
 export function CallsWorkspace() {
   const router = useRouter();
   const pathname = usePathname();
@@ -280,6 +295,8 @@ export function CallsWorkspace() {
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
   const typeTabsRef = useRef<HTMLDivElement>(null);
   const [matchedTabsHeight, setMatchedTabsHeight] = useState<number>();
   const activityTabsHeight = view === "activity" ? matchedTabsHeight : undefined;
@@ -330,18 +347,24 @@ export function CallsWorkspace() {
   const isTextView = channelFilter === "text";
   const activityActive = defaultViewReady && view === "activity";
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(query.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const callsQuery = useGetCallsQuery(
     {
       page: page + 1,
       pageSize,
       status: filter === "all" ? undefined : filter,
       channel: "call",
+      search: search || undefined,
     },
     { skip: !activityActive || isTextView },
   );
 
   const smsQuery = useGetSmsConversationsQuery(
-    { page: page + 1, pageSize },
+    { page: page + 1, pageSize, search: search || undefined },
     { skip: !activityActive || !isTextView },
   );
 
@@ -451,6 +474,11 @@ export function CallsWorkspace() {
       return isTextView
         ? "Could not load text conversations. Check the API connection and try again."
         : "Could not load outreach activity. Check the API connection and try again.";
+    }
+    if (search) {
+      return isTextView
+        ? `No texts match “${search}”.`
+        : `No calls match “${search}”.`;
     }
     if (isTextView) return "No texts yet.";
     if (filter === "all") return "No calls yet.";
@@ -660,23 +688,52 @@ export function CallsWorkspace() {
           justifyContent: "space-between",
         }}
       >
-        {view === "activity" ? (
-          <TypeFilterTabs
-            aria-label="Filter by type"
-            items={channelFilters}
-            value={channelFilter}
-            tablistRef={typeTabsRef}
-            onChange={(next) => {
-              setChannelFilter(next);
-              if (next === "text") setFilter("all");
-              setPage(0);
-              setSelectedId("");
-              setMobileOpenId(null);
-            }}
-          />
-        ) : (
-          <Box sx={{ flex: 1 }} />
-        )}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.25}
+          sx={{
+            alignItems: { xs: "stretch", sm: "center" },
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {view === "activity" ? (
+            <>
+              <TypeFilterTabs
+                aria-label="Filter by type"
+                items={channelFilters}
+                value={channelFilter}
+                tablistRef={typeTabsRef}
+                onChange={(next) => {
+                  setChannelFilter(next);
+                  if (next === "text") setFilter("all");
+                  setPage(0);
+                  setSelectedId("");
+                  setMobileOpenId(null);
+                }}
+              />
+              <TextField
+                size="medium"
+                placeholder="Search by patient name or call #"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(0);
+                  setSelectedId("");
+                  setMobileOpenId(null);
+                }}
+                slotProps={{
+                  input: {
+                    startAdornment: <Search size={15} style={{ marginRight: 8, color: "#8B93A7" }} />,
+                  },
+                }}
+                sx={searchFieldSx}
+              />
+            </>
+          ) : (
+            <Box sx={{ flex: 1 }} />
+          )}
+        </Stack>
         <TypeFilterTabs
           aria-label="Workspace view"
           items={workspaceViews}

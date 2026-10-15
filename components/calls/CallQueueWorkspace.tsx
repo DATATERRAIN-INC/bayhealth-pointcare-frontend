@@ -11,6 +11,7 @@ import {
   IconButton,
   Skeleton,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -22,6 +23,7 @@ import {
   Pause,
   Phone,
   RefreshCw,
+  Search,
   X,
 } from "lucide-react";
 import { channelMeta } from "@/data/gapCalls";
@@ -60,7 +62,17 @@ function waitingStatusParam(tab: WaitingTabKey): string {
   return tab === "all" ? ALL_WAITING_STATUS : tab;
 }
 
-function waitingEmptyMessage(tab: WaitingTabKey, processingActive: boolean): string {
+function waitingEmptyMessage(
+  tab: WaitingTabKey,
+  processingActive: boolean,
+  search = "",
+): string {
+  if (search) {
+    if (tab === "scheduled") return `No scheduled calls match “${search}”.`;
+    if (tab === "paused") return `No paused calls match “${search}”.`;
+    if (tab === "queued") return `No queued calls match “${search}”.`;
+    return `No waiting calls match “${search}”.`;
+  }
   if (tab === "scheduled") return "No scheduled calls right now.";
   if (tab === "paused") return "No paused calls right now.";
   if (tab === "queued") return "No queued calls right now.";
@@ -579,6 +591,22 @@ function QueueListRow({
   );
 }
 
+const waitingSearchFieldSx = {
+  width: { xs: "100%", sm: 320 },
+  minWidth: { sm: 320 },
+  flex: { sm: "0 0 320px" },
+  "& .MuiOutlinedInput-root": {
+    height: "34px !important",
+    minHeight: "34px !important",
+    borderRadius: "8px",
+    bgcolor: "#FFFFFF",
+    "& fieldset": { borderColor: "#E2E8F0" },
+    "&:hover fieldset": { borderColor: "#C5CAD6" },
+    "&.Mui-focused fieldset": { borderColor: "primary.main", borderWidth: 1 },
+  },
+  "& .MuiOutlinedInput-input": { py: 0, fontSize: "var(--font-size-body)" },
+} as const;
+
 export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   const [detailsItem, setDetailsItem] = useState<QueueCallItem | null>(null);
@@ -587,13 +615,19 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
   const [waitingTablePage, setWaitingTablePage] = useState(0);
   const [waitingPageSize, setWaitingPageSize] = useState(10);
   const [waitingTab, setWaitingTab] = useState<WaitingTabKey>("all");
+  const [waitingQuery, setWaitingQuery] = useState("");
+  const [waitingSearch, setWaitingSearch] = useState("");
   const [triggerCall, { isLoading: startingCall }] = useTriggerCallMutation();
   const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
   const [cancelCall, { isLoading: cancellingCall }] = useCancelCallMutation();
   const [actionError, setActionError] = useState("");
+  const searchTerm = waitingSearch.trim();
 
   const processingQueryArgs = useMemo(
-    () => ({ page: processingPage + 1, pageSize: processingPageSize }),
+    () => ({
+      page: processingPage + 1,
+      pageSize: processingPageSize,
+    }),
     [processingPage, processingPageSize],
   );
   const waitingQueryArgs = useMemo(
@@ -601,9 +635,19 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
       page: waitingTablePage + 1,
       pageSize: waitingPageSize,
       status: waitingStatusParam(waitingTab),
+      search: searchTerm || undefined,
     }),
-    [waitingTablePage, waitingPageSize, waitingTab],
+    [waitingTablePage, waitingPageSize, waitingTab, searchTerm],
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setWaitingSearch(waitingQuery.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [waitingQuery]);
+
+  useEffect(() => {
+    setWaitingTablePage(0);
+  }, [searchTerm]);
 
   const {
     data: inProgressPage,
@@ -926,9 +970,10 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
             }}
           >
             <Stack
-              direction="row"
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.25}
               sx={{
-                alignItems: "center",
+                alignItems: { xs: "stretch", sm: "center" },
                 justifyContent: "space-between",
                 px: 2,
                 py: 1.35,
@@ -936,10 +981,28 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
                 bgcolor: "#FAFBFC",
               }}
             >
-              <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary" }}>
-                Waiting & needs attention
-              </Typography>
-              <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.25}
+                sx={{ alignItems: { xs: "stretch", sm: "center" }, flex: 1, minWidth: 0 }}
+              >
+                <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", flexShrink: 0 }}>
+                  Waiting & needs attention
+                </Typography>
+                <TextField
+                  size="small"
+                  placeholder="Search by patient name or call #"
+                  value={waitingQuery}
+                  onChange={(event) => setWaitingQuery(event.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: <Search size={14} style={{ marginRight: 8, color: "#8B93A7" }} />,
+                    },
+                  }}
+                  sx={waitingSearchFieldSx}
+                />
+              </Stack>
+              <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", flexShrink: 0 }}>
                 {showWaitingSkeleton
                   ? "Loading"
                   : waitingCount === 0
@@ -961,7 +1024,7 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
               <Typography
                 sx={{ px: 2, py: 3.5, textAlign: "center", color: "#8B93A7", fontSize: "var(--font-size-body)" }}
               >
-                {waitingEmptyMessage(waitingTab, (processing?.length ?? 0) > 0)}
+                {waitingEmptyMessage(waitingTab, (processing?.length ?? 0) > 0, searchTerm)}
               </Typography>
             ) : (
               <>

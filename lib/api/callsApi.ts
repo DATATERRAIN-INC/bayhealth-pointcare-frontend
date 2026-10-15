@@ -26,6 +26,21 @@ export interface CallsQuery {
   status?: OutreachStatus;
   channel?: OutreachChannel;
   patient?: string | number;
+  /** Patient first/last/full name or call id. */
+  search?: string;
+}
+
+export interface CallQueueQuery {
+  page: number;
+  pageSize: number;
+  search?: string;
+}
+
+export interface QueuedCallQueueQuery {
+  page: number;
+  pageSize: number;
+  status: string;
+  search?: string;
 }
 
 export interface CallsPage {
@@ -143,13 +158,22 @@ function estimateForQueuedPosition(positionAmongQueued: number): ProcessingEstim
   return "about_10m";
 }
 
+function patientDisplayName(record: CallApiRecord): string {
+  const full = String(record.full_name ?? record.patient_name ?? "").trim();
+  if (full) return full;
+  const first = String(record.patient_first_name ?? record.first_name ?? "").trim();
+  const last = String(record.patient_last_name ?? record.last_name ?? "").trim();
+  const joined = [first, last].filter(Boolean).join(" ").trim();
+  return joined || "Unknown patient";
+}
+
 function mapQueueItem(record: CallApiRecord, position: number, status: QueueStatus): QueueCallItem {
   const reason =
     record.reason?.trim() || record.service_name?.trim() || record.decline_reason?.trim() || "";
   return {
     id: String(record.id ?? ""),
     position,
-    patientName: record.patient_name?.trim() || "Unknown patient",
+    patientName: patientDisplayName(record),
     phone: formatPhone(record),
     channel: mapChannel(record),
     status,
@@ -256,7 +280,7 @@ export function mapApiCall(record: CallApiRecord): OutreachCall {
   return {
     id,
     callNumber: Number(record.id) || 0,
-    patientName: record.patient_name?.trim() || "Unknown patient",
+    patientName: patientDisplayName(record),
     channel,
     status: mapStatus(record.status),
     started: formatDateTime(record.started_at),
@@ -340,7 +364,7 @@ export const callsApi = createApi({
   tagTypes: ["Call"],
   endpoints: (builder) => ({
     getCalls: builder.query<CallsPage, CallsQuery>({
-      query: ({ page, pageSize, status, channel, patient }) => {
+      query: ({ page, pageSize, status, channel, patient, search }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
@@ -350,6 +374,7 @@ export const callsApi = createApi({
         if (patient !== undefined && patient !== null && String(patient).trim()) {
           params.set("patient", String(patient));
         }
+        if (search?.trim()) params.set("search", search.trim());
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => {
@@ -379,13 +404,14 @@ export const callsApi = createApi({
             ]
           : [{ type: "Call", id: "LIST" }],
     }),
-    getCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number }>({
-      query: ({ page, pageSize }) => {
+    getCallQueue: builder.query<InProgressCallsPage, CallQueueQuery>({
+      query: ({ page, pageSize, search }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
           status: "in_progress",
         });
+        if (search?.trim()) params.set("search", search.trim());
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => mapQueueCallsPage(response),
@@ -401,14 +427,15 @@ export const callsApi = createApi({
       providesTags: [{ type: "Call", id: "SUMMARY" }],
       keepUnusedDataFor: 120,
     }),
-    getQueuedCallQueue: builder.query<InProgressCallsPage, { page: number; pageSize: number; status: string }>({
-      query: ({ page, pageSize, status }) => {
+    getQueuedCallQueue: builder.query<InProgressCallsPage, QueuedCallQueueQuery>({
+      query: ({ page, pageSize, status, search }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
           status,
           // ordering: "dial_queue",
         });
+        if (search?.trim()) params.set("search", search.trim());
         return `/calls/?${params.toString()}`;
       },
       transformResponse: (response: CallsListResponse | CallApiRecord[]) => mapQueueCallsPage(response),
