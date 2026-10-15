@@ -84,13 +84,22 @@ function mapSmsTranscriptLine(line: TranscriptApiLine): TranscriptLine {
   };
 }
 
+function smsPatientDisplayName(record: SmsConversationApiRecord): string {
+  const full = String(record.full_name ?? record.patient_name ?? "").trim();
+  if (full) return full;
+  const first = String(record.patient_first_name ?? record.first_name ?? "").trim();
+  const last = String(record.patient_last_name ?? record.last_name ?? "").trim();
+  const joined = [first, last].filter(Boolean).join(" ").trim();
+  return joined || "Unknown patient";
+}
+
 export function mapSmsConversation(record: SmsConversationApiRecord): OutreachCall {
   const id = String(record.id);
   const chatId = record.chat_id?.trim() ?? "";
   return {
     id,
     callNumber: Number(record.id) || 0,
-    patientName: record.patient_name?.trim() || "Unknown patient",
+    patientName: smsPatientDisplayName(record),
     channel: "text",
     // Text rows always show Sent (green); ignore API status variants.
     status: "ongoing",
@@ -126,12 +135,13 @@ export const smsApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ["Sms"],
   endpoints: (builder) => ({
-    getSmsConversations: builder.query<CallsPage, { page: number; pageSize: number }>({
-      query: ({ page, pageSize }) => {
+    getSmsConversations: builder.query<CallsPage, { page: number; pageSize: number; search?: string }>({
+      query: ({ page, pageSize, search }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
         });
+        if (search?.trim()) params.set("search", search.trim());
         return smsUrl(`/api/ai-sms/conversations/?${params.toString()}`);
       },
       transformResponse: (response: SmsConversationsListResponse | SmsConversationApiRecord[]) => {

@@ -5,6 +5,11 @@ export interface SmsConversationApiRecord {
   chat_id: string;
   patient_id: number | string;
   patient_name: string;
+  patient_first_name?: string;
+  patient_last_name?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
   status?: string;
   created_at: string;
 }
