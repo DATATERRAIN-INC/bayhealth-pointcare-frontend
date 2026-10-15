@@ -351,8 +351,6 @@ export function CallsWorkspace() {
   const isFetching = isTextView ? smsQuery.isFetching : callsQuery.isFetching;
   const isError = isTextView ? smsQuery.isError : callsQuery.isError;
 
-  const showSkeleton = !isError && (isUninitialized || isLoading || isFetching);
-
   const apiRows = useMemo(() => data?.results ?? [], [data?.results]);
   // Client-side channel filter as a fallback if the API ignores `channel` (calls only).
   const paged = useMemo(() => {
@@ -728,7 +726,7 @@ export function CallsWorkspace() {
             <DataGrid
               rows={isError ? [] : paged}
               columns={columns}
-              loading={showSkeleton}
+              loading={false}
               getRowId={(row) => row.id}
               disableRowSelectionOnClick
               disableColumnSorting
@@ -804,12 +802,7 @@ export function CallsWorkspace() {
               }}
             />
           </Box>
-          {showSkeleton ? (
-            <Stack direction="row" sx={{ justifyContent: "flex-end", alignItems: "center", gap: 2, minHeight: 52, px: 2, borderTop: "1px solid #EEF0F4" }}>
-              <Skeleton variant="rounded" animation="wave" width={120} height={16} sx={{ bgcolor: "#E9EEF4", borderRadius: "6px" }} />
-              <Skeleton variant="rounded" animation="wave" width={72} height={16} sx={{ bgcolor: "#E9EEF4", borderRadius: "6px" }} />
-            </Stack>
-          ) : rowCount > 0 ? (
+          {rowCount > 0 ? (
             <TablePager
               page={page}
               pageSize={pageSize}
@@ -858,13 +851,7 @@ export function CallsWorkspace() {
             />
           </Box>
         ) : null}
-        {showSkeleton ? (
-          <Stack spacing={1.5}>
-            {Array.from({ length: Math.min(pageSize, 6) }, (_, index) => (
-              <Skeleton key={`call-mobile-skeleton-${index}`} variant="rounded" height={92} sx={{ bgcolor: "#E9EEF4", borderRadius: "12px" }} />
-            ))}
-          </Stack>
-        ) : paged.length === 0 ? (
+        {paged.length === 0 ? (
           <Box
             sx={{
               ...surface,
