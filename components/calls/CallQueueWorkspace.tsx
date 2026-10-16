@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
@@ -305,19 +306,61 @@ const QUEUE_TABLE_COLUMNS = "48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px 44
 const QUEUE_TABLE_COLUMNS_XS = "44px minmax(0, 1fr) 40px";
 const QUEUE_TABLE_COLUMNS_NO_ACTION = "48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px";
 const QUEUE_TABLE_COLUMNS_XS_NO_ACTION = "44px minmax(0, 1fr)";
+const QUEUE_TABLE_COLUMNS_SELECTABLE = "36px 48px minmax(0, 1.4fr) minmax(0, 1fr) 108px 110px 44px";
+const QUEUE_TABLE_COLUMNS_XS_SELECTABLE = "32px 44px minmax(0, 1fr) 40px";
 
-function QueueTableHeader({ showActions = true }: { showActions?: boolean }) {
+function queueGridColumns(showActions: boolean, selectable: boolean): string {
+  if (selectable) return showActions ? QUEUE_TABLE_COLUMNS_SELECTABLE : QUEUE_TABLE_COLUMNS_NO_ACTION;
+  return showActions ? QUEUE_TABLE_COLUMNS : QUEUE_TABLE_COLUMNS_NO_ACTION;
+}
+
+function queueGridColumnsXs(showActions: boolean, selectable: boolean): string {
+  if (selectable) return showActions ? QUEUE_TABLE_COLUMNS_XS_SELECTABLE : QUEUE_TABLE_COLUMNS_XS_NO_ACTION;
+  return showActions ? QUEUE_TABLE_COLUMNS_XS : QUEUE_TABLE_COLUMNS_XS_NO_ACTION;
+}
+
+const checkboxSx = {
+  p: 0.5,
+  color: "#C5CCD8",
+  "&.Mui-checked": { color: "primary.main" },
+  "&.MuiCheckbox-indeterminate": { color: "primary.main" },
+} as const;
+
+function QueueTableHeader({
+  showActions = true,
+  selectable = false,
+  allSelected = false,
+  someSelected = false,
+  onToggleAll,
+}: {
+  showActions?: boolean;
+  selectable?: boolean;
+  allSelected?: boolean;
+  someSelected?: boolean;
+  onToggleAll?: () => void;
+}) {
   return (
     <Box
       sx={{
         display: { xs: "none", lg: "grid" },
-        gridTemplateColumns: showActions ? QUEUE_TABLE_COLUMNS : QUEUE_TABLE_COLUMNS_NO_ACTION,
+        gridTemplateColumns: queueGridColumns(showActions, selectable),
         columnGap: 1.25,
         px: 2,
         py: 1,
         borderBottom: "1px solid #F0F2F5",
+        alignItems: "center",
       }}
     >
+      {selectable ? (
+        <Checkbox
+          size="small"
+          checked={allSelected}
+          indeterminate={someSelected && !allSelected}
+          onChange={onToggleAll}
+          slotProps={{ input: { "aria-label": "Select all waiting calls" } }}
+          sx={checkboxSx}
+        />
+      ) : null}
       {["#", "Patient", "Reason", "Status", "Estimate", ...(showActions ? ["Action"] : [])].map((heading) => (
         <Typography
           key={heading}
@@ -493,6 +536,9 @@ function QueueListRow({
   pauseDisabled,
   cancelDisabled,
   showActions = true,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: {
   item: QueueCallItem;
   now: number;
@@ -503,14 +549,17 @@ function QueueListRow({
   pauseDisabled?: boolean;
   cancelDisabled?: boolean;
   showActions?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   return (
     <Box
       sx={{
         display: "grid",
         gridTemplateColumns: {
-          xs: showActions ? QUEUE_TABLE_COLUMNS_XS : QUEUE_TABLE_COLUMNS_XS_NO_ACTION,
-          lg: showActions ? QUEUE_TABLE_COLUMNS : QUEUE_TABLE_COLUMNS_NO_ACTION,
+          xs: queueGridColumnsXs(showActions, selectable),
+          lg: queueGridColumns(showActions, selectable),
         },
         columnGap: 1.25,
         rowGap: 0.75,
@@ -519,12 +568,25 @@ function QueueListRow({
         py: 1.45,
         borderBottom: "1px solid #F0F2F5",
         "&:last-child": { borderBottom: 0 },
-        "&:hover": { bgcolor: highlight ? "#EDF5FC" : "#FAFBFC" },
+        "&:hover": { bgcolor: highlight || selected ? "#EDF5FC" : "#FAFBFC" },
         bgcolor:
-          highlight ? "#F3F8FD" : item.status === "failed" ? "#FFFCFC" : "transparent",
+          highlight || selected
+            ? "#F3F8FD"
+            : item.status === "failed"
+              ? "#FFFCFC"
+              : "transparent",
         boxShadow: highlight ? "inset 3px 0 0 #2F72B9" : "none",
       }}
     >
+      {selectable ? (
+        <Checkbox
+          size="small"
+          checked={selected}
+          onChange={() => onToggleSelect?.(item.id)}
+          slotProps={{ input: { "aria-label": `Select ${item.patientName}` } }}
+          sx={checkboxSx}
+        />
+      ) : null}
       <Box
         sx={{
           width: 36,
@@ -617,6 +679,7 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
   const [waitingTab, setWaitingTab] = useState<WaitingTabKey>("all");
   const [waitingQuery, setWaitingQuery] = useState("");
   const [waitingSearch, setWaitingSearch] = useState("");
+  const [selectedWaitingIds, setSelectedWaitingIds] = useState<string[]>([]);
   const [triggerCall, { isLoading: startingCall }] = useTriggerCallMutation();
   const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
   const [cancelCall, { isLoading: cancellingCall }] = useCancelCallMutation();
@@ -647,7 +710,8 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
 
   useEffect(() => {
     setWaitingTablePage(0);
-  }, [searchTerm]);
+    setSelectedWaitingIds([]);
+  }, [searchTerm, waitingTab]);
 
   const {
     data: inProgressPage,
@@ -700,6 +764,43 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
   const queuedCount = summary?.queued ?? 0;
   const inProgressCount = summary?.in_progress ?? 0;
   const pausedCount = summary?.paused ?? 0;
+  const waitingIds = useMemo(() => waiting.map((item) => item.id), [waiting]);
+  const selectedOnPage = useMemo(
+    () => selectedWaitingIds.filter((id) => waitingIds.includes(id)),
+    [selectedWaitingIds, waitingIds],
+  );
+  const allWaitingSelected = waitingIds.length > 0 && selectedOnPage.length === waitingIds.length;
+  const someWaitingSelected = selectedOnPage.length > 0;
+
+  useEffect(() => {
+    setSelectedWaitingIds((current) => current.filter((id) => waitingIds.includes(id)));
+  }, [waitingIds]);
+
+  function toggleWaitingSelect(id: string) {
+    setSelectedWaitingIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
+  }
+
+  function toggleSelectAllWaiting() {
+    setSelectedWaitingIds((current) => {
+      if (waitingIds.length === 0) return current;
+      const allSelected = waitingIds.every((id) => current.includes(id));
+      if (allSelected) return current.filter((id) => !waitingIds.includes(id));
+      return Array.from(new Set([...current, ...waitingIds]));
+    });
+  }
+
+  function cancelSelectedWaiting() {
+    if (selectedOnPage.length === 0) return;
+    setActionError("");
+    void cancelCall({ ids: selectedOnPage })
+      .unwrap()
+      .then(() => setSelectedWaitingIds([]))
+      .catch((error) =>
+        setActionError(getApiErrorMessage(error, "Could not cancel the selected calls.")),
+      );
+  }
 
   const processingMaxPage = Math.max(0, Math.ceil(processingCount / processingPageSize) - 1);
   if (processingPage > processingMaxPage) {
@@ -1001,6 +1102,25 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
                   }}
                   sx={waitingSearchFieldSx}
                 />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  startIcon={<Ban size={14} />}
+                  disabled={!someWaitingSelected || cancellingCall}
+                  loading={cancellingCall && someWaitingSelected}
+                  onClick={cancelSelectedWaiting}
+                  sx={{
+                    flexShrink: 0,
+                    px: 1.5,
+                    color: someWaitingSelected ? "#D14343" : undefined,
+                    borderColor: someWaitingSelected ? "#F0C4C4" : undefined,
+                    "&:hover": someWaitingSelected
+                      ? { bgcolor: "#FFF5F5", borderColor: "#E8A0A0" }
+                      : undefined,
+                  }}
+                >
+                  {someWaitingSelected ? `Cancel (${selectedOnPage.length})` : "Cancel"}
+                </Button>
               </Stack>
               <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", flexShrink: 0 }}>
                 {showWaitingSkeleton
@@ -1028,7 +1148,12 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
               </Typography>
             ) : (
               <>
-                <QueueTableHeader />
+                <QueueTableHeader
+                  selectable
+                  allSelected={allWaitingSelected}
+                  someSelected={someWaitingSelected}
+                  onToggleAll={toggleSelectAllWaiting}
+                />
                 {waiting.map((item) => (
                   <QueueListRow
                     key={item.id}
@@ -1038,6 +1163,9 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
                     canMoveDown={false}
                     pauseDisabled={pausingCall}
                     cancelDisabled={cancellingCall}
+                    selectable
+                    selected={selectedWaitingIds.includes(item.id)}
+                    onToggleSelect={toggleWaitingSelect}
                     onAction={onAction}
                   />
                 ))}
@@ -1046,10 +1174,14 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
                   pageSize={waitingPageSize}
                   rowCount={waitingCount}
                   pageSizeOptions={[5, 10, 20]}
-                  onPageChange={setWaitingTablePage}
+                  onPageChange={(next) => {
+                    setWaitingTablePage(next);
+                    setSelectedWaitingIds([]);
+                  }}
                   onPageSizeChange={(next) => {
                     setWaitingPageSize(next);
                     setWaitingTablePage(0);
+                    setSelectedWaitingIds([]);
                   }}
                 />
               </>
