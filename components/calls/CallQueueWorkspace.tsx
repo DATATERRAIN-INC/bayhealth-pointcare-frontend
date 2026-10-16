@@ -50,6 +50,8 @@ import {
 
 type WaitingTabKey = "all" | "scheduled" | "paused" | "queued";
 
+const EMPTY_QUEUE_ITEMS: QueueCallItem[] = [];
+
 const WAITING_TABS: { key: WaitingTabKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "scheduled", label: "Schedule" },
@@ -757,14 +759,18 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
     }
   }
 
-  const processing = inProgressPage?.results ?? [];
+  const processing = inProgressPage?.results ?? EMPTY_QUEUE_ITEMS;
   const processingCount = inProgressPage?.count ?? 0;
-  const waiting = queuedPage?.results ?? [];
+  const waiting = queuedPage?.results ?? EMPTY_QUEUE_ITEMS;
   const waitingCount = queuedPage?.count ?? 0;
   const queuedCount = summary?.queued ?? 0;
   const inProgressCount = summary?.in_progress ?? 0;
   const pausedCount = summary?.paused ?? 0;
-  const waitingIds = useMemo(() => waiting.map((item) => item.id), [waiting]);
+  const waitingIdsKey = useMemo(() => waiting.map((item) => item.id).join("\0"), [waiting]);
+  const waitingIds = useMemo(
+    () => (waitingIdsKey ? waitingIdsKey.split("\0") : []),
+    [waitingIdsKey],
+  );
   const selectedOnPage = useMemo(
     () => selectedWaitingIds.filter((id) => waitingIds.includes(id)),
     [selectedWaitingIds, waitingIds],
@@ -773,7 +779,13 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
   const someWaitingSelected = selectedOnPage.length > 0;
 
   useEffect(() => {
-    setSelectedWaitingIds((current) => current.filter((id) => waitingIds.includes(id)));
+    setSelectedWaitingIds((current) => {
+      const next = current.filter((id) => waitingIds.includes(id));
+      if (next.length === current.length && next.every((id, index) => id === current[index])) {
+        return current;
+      }
+      return next;
+    });
   }, [waitingIds]);
 
   function toggleWaitingSelect(id: string) {
