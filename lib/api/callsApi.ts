@@ -224,6 +224,18 @@ function asCount(value: unknown): number {
   return Number.isFinite(count) ? count : 0;
 }
 
+/** Normalize one or many call ids for bulk status PUT `{ call_ids, status }`. */
+function toCallIds(
+  id?: number | string,
+  ids?: Array<number | string>,
+): Array<number | string> {
+  const source = ids?.length ? ids : id != null ? [id] : [];
+  return source.map((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : value;
+  });
+}
+
 function mapCallSummary(response: Partial<CallSummary> | null | undefined): CallSummary {
   return {
     all: asCount(response?.all),
@@ -456,11 +468,17 @@ export const callsApi = createApi({
       transformResponse: (response: CallTranscriptResponse | CallsListResponse | CallApiRecord[]) =>
         mapCallTranscriptPayload(response),
     }),
-    setCallPaused: builder.mutation<unknown, { id: number | string; paused: boolean }>({
-      query: ({ id, paused }) => ({
-        url: `/calls/${id}/`,
+    setCallPaused: builder.mutation<
+      unknown,
+      { id?: number | string; ids?: Array<number | string>; paused: boolean }
+    >({
+      query: ({ id, ids, paused }) => ({
+        url: "/calls/",
         method: "PUT",
-        body: { status: paused ? "paused" : "queued" },
+        body: {
+          call_ids: toCallIds(id, ids),
+          status: paused ? "paused" : "queued",
+        },
       }),
       invalidatesTags: [
         { type: "Call", id: "LIST" },
@@ -469,11 +487,14 @@ export const callsApi = createApi({
         { type: "Call", id: "SUMMARY" },
       ],
     }),
-    cancelCall: builder.mutation<unknown, { id: number | string }>({
-      query: ({ id }) => ({
-        url: `/calls/${id}/`,
+    cancelCall: builder.mutation<unknown, { id?: number | string; ids?: Array<number | string> }>({
+      query: ({ id, ids }) => ({
+        url: "/calls/",
         method: "PUT",
-        body: { status: "cancel" },
+        body: {
+          call_ids: toCallIds(id, ids),
+          status: "cancel",
+        },
       }),
       invalidatesTags: [
         { type: "Call", id: "LIST" },
