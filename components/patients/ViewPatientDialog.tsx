@@ -628,7 +628,10 @@ export function ViewPatientDialog({
                 const channel = channelMeta[attempt.channel];
                 const status = callStatusMeta(attempt.status);
                 const canViewTranscript =
-                  attempt.status === "completed" && Boolean(attempt.retellCallId);
+                  (attempt.status === "completed" ||
+                    attempt.status === "callback" ||
+                    attempt.status === "voicemail_reached") &&
+                  Boolean(attempt.retellCallId);
                 return (
                   <Stack
                     key={attempt.id}

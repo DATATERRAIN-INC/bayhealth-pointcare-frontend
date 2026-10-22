@@ -1,6 +1,7 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "@/lib/api/baseQuery";
-import { parseCallStatus, type CallStatus } from "@/components/shared/CallStatusChip";
+import { LIVE_CALL_STATUSES, parseCallStatus, type CallStatus } from "@/components/shared/CallStatusChip";
+import { parseUserSentiment } from "@/components/shared/SentimentChip";
 import type { OutreachCall, OutreachChannel, OutreachStatus, TranscriptLine } from "@/data/gapCalls";
 import {
   liveAgentRecordingUrlFromResponse,
@@ -141,11 +142,19 @@ function mapQueueStatusFromApi(value: string | undefined): QueueStatus {
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
-  if (status === "in_progress" || status === "ongoing" || status === "ringing") return "in_progress";
+  if (
+    status === "in_progress" ||
+    status === "ongoing" ||
+    status === "ringing" ||
+    status === "waiting" ||
+    status === "connect_live_agent"
+  ) {
+    return "in_progress";
+  }
   if (status === "queued") return "queued";
   if (status === "paused") return "paused";
   if (status === "scheduled") return "scheduled";
-  if (status === "failed" || status === "not_attended") return "failed";
+  if (status === "failed" || status === "not_attended" || status === "voicemail_reached") return "failed";
   if (status === "completed" || status === "complete" || status === "ended") return "completed";
   if (status === "cancelled" || status === "canceled" || status === "cancel") return "cancelled";
   return "queued";
@@ -211,7 +220,11 @@ export interface CallSummary {
   all: number;
   completed: number;
   in_progress: number;
+  ongoing: number;
+  waiting: number;
+  connect_live_agent: number;
   not_attended: number;
+  voicemail_reached: number;
   callback: number;
   queued: number;
   scheduled: number;
@@ -241,7 +254,11 @@ function mapCallSummary(response: Partial<CallSummary> | null | undefined): Call
     all: asCount(response?.all),
     completed: asCount(response?.completed),
     in_progress: asCount(response?.in_progress),
+    ongoing: asCount(response?.ongoing),
+    waiting: asCount(response?.waiting),
+    connect_live_agent: asCount(response?.connect_live_agent),
     not_attended: asCount(response?.not_attended),
+    voicemail_reached: asCount(response?.voicemail_reached),
     callback: asCount(response?.callback),
     queued: asCount(response?.queued),
     scheduled: asCount(response?.scheduled),
@@ -295,6 +312,7 @@ export function mapApiCall(record: CallApiRecord): OutreachCall {
     patientName: patientDisplayName(record),
     channel,
     status: mapStatus(record.status),
+    userSentiment: parseUserSentiment(record.user_sentiment),
     started: formatDateTime(record.started_at),
     duration: channel === "text" ? "—" : formatDuration(record.duration_seconds),
     dateLabel: formatDateLabel(record.started_at),
@@ -381,7 +399,10 @@ export const callsApi = createApi({
           page: String(page),
           page_size: String(pageSize),
         });
-        if (status) params.set("status", status);
+        if (status) {
+          // One tab covers both transfer states: waiting for, and with, a live agent.
+          params.set("status", status === "live_agent" ? "waiting,connect_live_agent" : status);
+        }
         if (channel) params.set("channel", channel);
         if (patient !== undefined && patient !== null && String(patient).trim()) {
           params.set("patient", String(patient));
@@ -421,7 +442,7 @@ export const callsApi = createApi({
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
-          status: "in_progress",
+          status: LIVE_CALL_STATUSES.join(","),
         });
         if (search?.trim()) params.set("search", search.trim());
         return `/calls/?${params.toString()}`;

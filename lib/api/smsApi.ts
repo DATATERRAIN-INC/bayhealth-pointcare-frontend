@@ -102,7 +102,7 @@ export function mapSmsConversation(record: SmsConversationApiRecord): OutreachCa
     patientName: smsPatientDisplayName(record),
     channel: "text",
     // Text rows always show Sent (green); ignore API status variants.
-    status: "ongoing",
+    status: "sent",
     started: formatDateTime(record.created_at),
     duration: "—",
     dateLabel: formatDateLabel(record.created_at),

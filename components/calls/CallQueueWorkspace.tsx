@@ -764,7 +764,9 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
   const waiting = queuedPage?.results ?? EMPTY_QUEUE_ITEMS;
   const waitingCount = queuedPage?.count ?? 0;
   const queuedCount = summary?.queued ?? 0;
-  const inProgressCount = summary?.in_progress ?? 0;
+  const inProgressCount = summary
+    ? summary.in_progress + summary.ongoing + summary.waiting + summary.connect_live_agent
+    : 0;
   const pausedCount = summary?.paused ?? 0;
   const waitingIdsKey = useMemo(() => waiting.map((item) => item.id).join("\0"), [waiting]);
   const waitingIds = useMemo(
