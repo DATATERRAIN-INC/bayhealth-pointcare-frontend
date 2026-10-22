@@ -11,7 +11,8 @@ import {
 } from "@mui/material";
 import { ArrowLeft, CalendarDays, Check, ClipboardList, Eye, EyeOff, MapPin, Phone, Stethoscope, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { CallStatusChip, callStatusMeta } from "@/components/shared/CallStatusChip";
+import { CallStatusChip } from "@/components/shared/CallStatusChip";
+import { StatusIndicator } from "@/components/shared/StatusIndicator";
 import { OutreachTranscriptPanel } from "@/components/patients/PatientTranscriptDialog";
 import { formatPhoneNumber } from "@/constants/phone";
 import { channelMeta } from "@/data/gapCalls";
@@ -626,7 +627,6 @@ export function ViewPatientDialog({
               {attempts.map((attempt, index) => {
                 const tryNumber = index + 1;
                 const channel = channelMeta[attempt.channel];
-                const status = callStatusMeta(attempt.status);
                 const canViewTranscript =
                   (attempt.status === "completed" ||
                     attempt.status === "callback" ||
@@ -704,22 +704,8 @@ export function ViewPatientDialog({
                       >
                         {channel.label}
                       </Box>
-                      <Box
-                        component="span"
-                        sx={{
-                          width: 108,
-                          px: 1,
-                          py: 0.25,
-                          borderRadius: "999px",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: status.color,
-                          bgcolor: status.bg,
-                          textAlign: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {status.label}
+                      <Box sx={{ minWidth: 108, flexShrink: 0, displayContent: "center" }}>
+                        <StatusIndicator status={attempt.status} />
                       </Box>
                       {canViewTranscript ? (
                         <Box

@@ -24,6 +24,7 @@ import { Menu as MenuIcon } from "lucide-react";
 import { useState, type MouseEvent } from "react";
 import { ConfirmLogoutDialog } from "@/components/auth/ConfirmLogoutDialog";
 import { BachLogo } from "@/components/brand/BachLogo";
+import { StatusIndicator } from "@/components/shared/StatusIndicator";
 import { logout } from "@/lib/auth";
 import {
   useGetNotificationsQuery,
@@ -156,24 +157,8 @@ function patientStatusFrom(item: NotificationItem): string {
   return "";
 }
 
-function statusChipColors(status: string): { color: string; bgcolor: string } {
-  const normalized = status.trim().toLowerCase();
-  if (normalized.includes("block")) return { color: "#D14343", bgcolor: "#FDECEC" };
-  if (normalized.includes("active") || normalized.includes("success") || normalized.includes("complete")) {
-    return { color: "#178A45", bgcolor: "#E5F6EC" };
-  }
-  if (normalized.includes("fail") || normalized.includes("error") || normalized.includes("miss")) {
-    return { color: "#D14343", bgcolor: "#FDECEC" };
-  }
-  if (normalized.includes("pending") || normalized.includes("progress") || normalized.includes("call")) {
-    return { color: "#1D5F9A", bgcolor: "#EAF3FB" };
-  }
-  return { color: "#526071", bgcolor: "#F0F2F5" };
-}
-
 function NotificationRow({ item, onOpen }: { item: NotificationItem; onOpen: () => void }) {
   const status = patientStatusFrom(item);
-  const statusColors = status ? statusChipColors(status) : null;
 
   return (
     <MenuItem onClick={onOpen} sx={{ py: 1.25, alignItems: "flex-start", whiteSpace: "normal", gap: 1 }}>
@@ -206,24 +191,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItem; onOpen: () 
             ) : null}
           </Box>
           <Stack spacing={0.5} sx={{ alignItems: "flex-end", flexShrink: 0 }}>
-            {status && statusColors ? (
-              <Box
-                component="span"
-                sx={{
-                  display: "inline-flex",
-                  px: 0.8,
-                  py: 0.15,
-                  borderRadius: "999px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: statusColors.color,
-                  bgcolor: statusColors.bgcolor,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {status}
-              </Box>
-            ) : null}
+            {status ? <StatusIndicator status={status} /> : null}
             <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", whiteSpace: "nowrap" }}>
               {timeAgo(item.created_at)}
             </Typography>

@@ -5,11 +5,11 @@ import { Box, Typography } from "@mui/material";
 /** Retell post-call analysis `user_sentiment`: how the patient felt on the call. */
 export type UserSentiment = "Positive" | "Neutral" | "Negative" | "Unknown";
 
-const SENTIMENT_META: Record<UserSentiment, { label: string; color: string; bg: string }> = {
-  Positive: { label: "Positive", color: "#178A45", bg: "#E5F6EC" },
-  Neutral: { label: "Neutral", color: "#526071", bg: "#F0F2F5" },
-  Negative: { label: "Negative", color: "#D14343", bg: "#FDECEC" },
-  Unknown: { label: "Unknown", color: "#8B93A7", bg: "#F5F6F8" },
+const SENTIMENT_META: Record<UserSentiment, { label: string; color: string }> = {
+  Positive: { label: "Positive", color: "#15803D" },
+  Neutral: { label: "Neutral", color: "#64748B" },
+  Negative: { label: "Negative", color: "#DC2626" },
+  Unknown: { label: "Unknown", color: "#6B7280" },
 };
 
 export function parseUserSentiment(value: unknown): UserSentiment | null {
@@ -21,7 +21,10 @@ export function parseUserSentiment(value: unknown): UserSentiment | null {
   return null;
 }
 
-/** Shows "—" until Retell finishes its post-call analysis. */
+/**
+ * Dot + label sentiment (same pattern as StatusIndicator).
+ * Shows "—" until Retell finishes its post-call analysis.
+ */
 export function SentimentChip({ sentiment }: { sentiment: UserSentiment | null | undefined }) {
   if (!sentiment) {
     return (
@@ -34,23 +37,46 @@ export function SentimentChip({ sentiment }: { sentiment: UserSentiment | null |
   const meta = SENTIMENT_META[sentiment];
   return (
     <Box
-      component="span"
       title="Patient sentiment (Retell post-call analysis)"
       sx={{
         display: "inline-flex",
+        flexDirection: "row",
         alignItems: "center",
-        px: 1,
-        py: 0.3,
-        borderRadius: "999px",
-        bgcolor: meta.bg,
-        color: meta.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 650,
-        lineHeight: 1.3,
-        whiteSpace: "nowrap",
+        gap: "8px",
+        lineHeight: 1,
+        verticalAlign: "middle",
       }}
     >
-      {meta.label}
+      <Box
+        component="span"
+        aria-hidden
+        sx={{
+          width: 10,
+          height: 10,
+          borderRadius: "50%",
+          bgcolor: meta.color,
+          flexShrink: 0,
+          display: "inline-block",
+          alignSelf: "center",
+          position: "relative",
+          top: "1px",
+        }}
+      />
+      <Box
+        component="span"
+        sx={{
+          fontSize: 14,
+          fontWeight: 500,
+          color: meta.color,
+          lineHeight: 1,
+          whiteSpace: "nowrap",
+          display: "inline-block",
+          m: 0,
+          p: 0,
+        }}
+      >
+        {meta.label}
+      </Box>
     </Box>
   );
 }

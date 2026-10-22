@@ -8,12 +8,11 @@ import {
   Dialog,
   Skeleton,
   Stack,
-  TextField,
   Typography,
   useMediaQuery,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Ban, Eye, FileText, MessageSquare, Phone, Plus, Search, ShieldCheck, Upload } from "lucide-react";
+import { Ban, Eye, FileText, MessageSquare, Phone, Plus, ShieldCheck, Upload } from "lucide-react";
 import {
   actionErrorMessage,
   CallInitiatingDialog,
@@ -27,6 +26,8 @@ import {
 } from "@/components/shared/CallStatusChip";
 import { ColumnHeaderFilter } from "@/components/shared/ColumnHeaderFilter";
 import { RecordActions, type ActionsMenuItem } from "@/components/shared/RecordActions";
+import { SearchBox } from "@/components/shared/SearchBox";
+import { StatusIndicator } from "@/components/shared/StatusIndicator";
 import { Button } from "@/components/ui/Button";
 import {
   dataGridViewportHeight,
@@ -70,24 +71,7 @@ function uploadErrorMessage(error: unknown): string {
 }
 
 function BlockedChip() {
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        px: 0.8,
-        py: 0.15,
-        borderRadius: "999px",
-        fontSize: "var(--font-size-body)",
-        fontWeight: 600,
-        lineHeight: 1.4,
-        color: "#D14343",
-        bgcolor: "#FDECEC",
-      }}
-    >
-      Blocked
-    </Box>
-  );
+  return <StatusIndicator status="Blocked" />;
 }
 
 function PatientRowActions({
@@ -376,20 +360,6 @@ function buildPatientColumns(
   ];
 }
 
-const searchSx = {
-  width: { xs: "100%", md: 300 },
-  "& .MuiOutlinedInput-root": {
-    height: "45px !important",
-    minHeight: "45px !important",
-    borderRadius: "7px",
-    bgcolor: "#FFFFFF",
-    "& fieldset": { borderColor: "#DDE2E9" },
-    "&:hover fieldset": { borderColor: "#BFC7D2" },
-    "&.Mui-focused fieldset": { borderColor: "primary.main", borderWidth: 1 },
-  },
-  "& .MuiOutlinedInput-input": { py: 0, fontSize: "var(--font-size-body)" },
-} as const;
-
 export function Patient() {
   const isDesktopTable = useMediaQuery((theme) => theme.breakpoints.up("md"));
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -484,20 +454,20 @@ export function Patient() {
           spacing={1}
           sx={{ width: { xs: "100%", md: "auto" }, alignItems: { xs: "stretch", md: "center" } }}
         >
-          <TextField
-            size="small"
-            placeholder="Search patients"
+          <SearchBox
+            height="45px"
+            width="300px"
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
+            handleSearch={(next) => {
+              setQuery(next);
               setPage(0);
             }}
-            slotProps={{
-              input: {
-                startAdornment: <Search size={15} style={{ marginRight: 8, color: "#8B93A7" }} />,
-              },
-            }}
-            sx={searchSx}
+            enableAnimation
+            staticText="Search by "
+            animatedItems={["patient name", "MRN"]}
+            animationInterval={3000}
+            iconPosition="start"
+            placeholder="Search patients"
           />
           <Button
             type="button"

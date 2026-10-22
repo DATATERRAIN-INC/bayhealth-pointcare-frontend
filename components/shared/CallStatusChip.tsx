@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Typography } from "@mui/material";
+import { StatusIndicator, statusColors, statusText } from "@/components/shared/StatusIndicator";
 
 export type CallStatus =
   | "queued"
@@ -17,22 +17,21 @@ export type CallStatus =
   | "paused"
   | "cancel";
 
-const CALL_STATUS_META: Record<CallStatus, { label: string; color: string; bg: string }> = {
-  queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
-  in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
-  ongoing: { label: "Ongoing", color: "#178A45", bg: "#E5F6EC" },
-  // Text (SMS) threads only.
-  sent: { label: "Sent", color: "#178A45", bg: "#E5F6EC" },
-  waiting: { label: "Waiting for agent", color: "#B45309", bg: "#FEF3C7" },
-  connect_live_agent: { label: "With live agent", color: "#1D5F9A", bg: "#E8F3FC" },
-  completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
-  not_attended: { label: "Not attended", color: "#D14343", bg: "#FDECEC" },
-  voicemail_reached: { label: "Voicemail", color: "#B42318", bg: "#FEF0EE" },
-  callback: { label: "Callback", color: "#B45309", bg: "#FEF3C7" },
-  scheduled: { label: "Scheduled", color: "#5B4DB5", bg: "#EEEAFE" },
-  paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
-  cancel: { label: "Cancelled", color: "#6B7280", bg: "#F3F4F6" },
-};
+const CALL_STATUS_KEYS: CallStatus[] = [
+  "queued",
+  "in_progress",
+  "ongoing",
+  "sent",
+  "waiting",
+  "connect_live_agent",
+  "completed",
+  "not_attended",
+  "voicemail_reached",
+  "callback",
+  "scheduled",
+  "paused",
+  "cancel",
+];
 
 export function parseCallStatus(value: unknown): CallStatus | null {
   const status = String(value ?? "")
@@ -51,13 +50,13 @@ export function parseCallStatus(value: unknown): CallStatus | null {
     status === "voicemail_reached" ||
     status === "callback" ||
     status === "scheduled" ||
-    status === "paused" ||
     status === "cancel" ||
     status === "cancelled" ||
-    status === "canceled"
+    status === "canceled" ||
+    status === "sent"
   ) {
     if (status === "cancelled" || status === "canceled") return "cancel";
-    return status;
+    return status as CallStatus;
   }
   return null;
 }
@@ -69,50 +68,26 @@ export function isLiveCallStatus(status: string | null | undefined): boolean {
   return (LIVE_CALL_STATUSES as readonly string[]).includes(String(status ?? ""));
 }
 
-export function callStatusMeta(status: CallStatus | null | undefined): { label: string; color: string; bg: string } {
-  if (!status) return { label: "Unknown", color: "#8B93A7", bg: "#F0F2F5" };
-  return CALL_STATUS_META[status];
+export function callStatusMeta(
+  status: CallStatus | null | undefined,
+): { label: string; color: string; bg: string } {
+  if (!status) return { label: "Unknown", color: "#6E6E6E", bg: "transparent" };
+  return {
+    label: statusText[status] || status,
+    color: statusColors[status] || "#6E6E6E",
+    bg: "transparent",
+  };
 }
 
 export const CALL_STATUS_FILTER_OPTIONS: { value: CallStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
-  ...(Object.entries(CALL_STATUS_META) as [CallStatus, { label: string }][])
-    // "sent" is a text-thread label, not a patient call status.
-    .filter(([value]) => value !== "sent")
-    .map(([value, meta]) => ({
+  ...CALL_STATUS_KEYS.filter((value) => value !== "sent").map((value) => ({
     value,
-    label: meta.label,
+    label: statusText[value] || value,
   })),
 ];
 
+/** Status column renderer — colored 10px dot + label (no pill). */
 export function CallStatusChip({ status }: { status: CallStatus | null | undefined }) {
-  if (!status) {
-    return (
-      <Typography component="span" sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
-        —
-      </Typography>
-    );
-  }
-
-  const meta = CALL_STATUS_META[status];
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        px: 1,
-        py: 0.3,
-        borderRadius: "999px",
-        bgcolor: meta.bg,
-        color: meta.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 650,
-        lineHeight: 1.3,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {meta.label}
-    </Box>
-  );
+  return <StatusIndicator status={status ?? undefined} />;
 }
