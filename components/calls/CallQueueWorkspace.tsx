@@ -43,7 +43,7 @@ import { TablePager } from "@/components/shared/TablePager";
 import { Button } from "@/components/ui/Button";
 import { elevation } from "@/lib/theme/tokens";
 import type { QueueCallItem, QueueStatus } from "@/types/queue";
-import { processingEstimateMeta } from "@/types/queue";
+import { isLiveQueueStatus, processingEstimateMeta } from "@/types/queue";
 
 type WaitingTabKey = "all" | "scheduled" | "paused" | "queued";
 
@@ -450,14 +450,14 @@ function actionItemsFor(
     cancelDisabled?: boolean;
   },
 ) {
-  const isActive = opts?.isActive ?? item.status === "in_progress";
+  const isActive = opts?.isActive ?? isLiveQueueStatus(item.status);
   // const queuedLike = item.status === "queued" || item.status === "paused";
   return [
     {
       key: "start",
       label: "Start Call",
       icon: <CirclePlay size={15} />,
-      disabled: item.status === "in_progress" || item.status === "completed" || item.status === "cancelled",
+      disabled: isLiveQueueStatus(item.status) || item.status === "completed" || item.status === "cancelled",
       onClick: () => onAction(item.id, "start"),
     },
     {
@@ -1350,7 +1350,7 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
           <Button variant="secondary" onClick={() => setDetailsItem(null)}>
             Close
           </Button>
-          {detailsItem && detailsItem.status !== "in_progress" && detailsItem.status !== "cancelled" ? (
+          {detailsItem && !isLiveQueueStatus(detailsItem.status) && detailsItem.status !== "cancelled" ? (
             <Button
               variant="soft"
               startIcon={<CirclePlay size={15} />}

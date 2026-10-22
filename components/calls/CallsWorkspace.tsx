@@ -50,6 +50,17 @@ import {
 import { useGetSmsConversationsQuery, useGetSmsTranscriptQuery } from "@/lib/api/smsApi";
 import { elevation } from "@/lib/theme/tokens";
 
+/** A transcript, chat, or recording exists to open in the side panel. */
+function canViewTranscript(call: OutreachCall): boolean {
+  return (
+    call.hasTranscript ||
+    Boolean(call.chatId) ||
+    call.messages.length > 0 ||
+    Boolean(call.recordingUrl) ||
+    Boolean(call.liveAgentRecordingUrl)
+  );
+}
+
 type WorkspaceView = "activity" | "queue";
 
 function queueHasItems(summary: {
@@ -579,12 +590,7 @@ export function CallsWorkspace() {
   }
 
   function transcriptLabel(call: OutreachCall): string {
-    const available =
-      call.hasTranscript ||
-      Boolean(call.chatId) ||
-      call.messages.length > 0 ||
-      Boolean(call.recordingUrl) ||
-      Boolean(call.liveAgentRecordingUrl);
+    const available = canViewTranscript(call);
     if (call.id === selected?.id && available) return "Viewing";
     if (available) return "View";
     if (call.channel === "call" && isLiveCallStatus(call.status)) return "After call ends";
@@ -883,7 +889,15 @@ export function CallsWorkspace() {
               hideFooter
               rowHeight={TABLE_ROW_HEIGHT}
               columnHeaderHeight={TABLE_HEADER_HEIGHT}
-              getRowClassName={(params) => (params.id === selectedId ? "calls-row--selected" : "")}
+              onRowClick={(params) => {
+                if (canViewTranscript(params.row)) setSelectedId(params.row.id);
+              }}
+              getRowClassName={(params) =>
+                [
+                  params.id === selectedId ? "calls-row--selected" : "",
+                  canViewTranscript(params.row) ? "calls-row--clickable" : "",
+                ].join(" ")
+              }
               slots={{
                 noRowsOverlay: () => (
                   <Stack sx={{ height: "100%", alignItems: "center", justifyContent: "center", px: 2 }}>
@@ -946,6 +960,9 @@ export function CallsWorkspace() {
                 },
                 "& .MuiDataGrid-row:hover": {
                   bgcolor: "#F8FAFC",
+                },
+                "& .calls-row--clickable": {
+                  cursor: "pointer",
                 },
                 "& .calls-row--selected": {
                   bgcolor: "#F3F8FD",
@@ -1030,12 +1047,7 @@ export function CallsWorkspace() {
         ) : (
           paged.map((call) => {
             const open = mobileOpenId === call.id;
-            const transcriptReady =
-              call.hasTranscript ||
-              Boolean(call.chatId) ||
-              call.messages.length > 0 ||
-              Boolean(call.recordingUrl) ||
-              Boolean(call.liveAgentRecordingUrl);
+            const transcriptReady = canViewTranscript(call);
             return (
               <Box
                 key={call.id}

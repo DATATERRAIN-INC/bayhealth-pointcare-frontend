@@ -1,5 +1,8 @@
 export type QueueStatus =
   | "in_progress"
+  | "ongoing"
+  | "waiting"
+  | "connect_live_agent"
   | "queued"
   | "paused"
   | "scheduled"
@@ -39,8 +42,21 @@ export interface CallQueueSnapshot {
   updatedAt: string;
 }
 
+/** On the line now: ringing, with the AI, waiting for an agent, or with an agent. */
+export function isLiveQueueStatus(status: QueueStatus | null | undefined): boolean {
+  return (
+    status === "in_progress" ||
+    status === "ongoing" ||
+    status === "waiting" ||
+    status === "connect_live_agent"
+  );
+}
+
 export const queueStatusMeta: Record<QueueStatus, { label: string; color: string; bg: string }> = {
-  in_progress: { label: "In Progress", color: "#1D5F9A", bg: "#E8F3FC" },
+  in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
+  ongoing: { label: "Ongoing", color: "#178A45", bg: "#E5F6EC" },
+  waiting: { label: "Waiting for agent", color: "#B45309", bg: "#FEF3C7" },
+  connect_live_agent: { label: "With live agent", color: "#1D5F9A", bg: "#E8F3FC" },
   queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
   paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
   scheduled: { label: "Scheduled", color: "#5B4DB5", bg: "#EEEAFE" },
