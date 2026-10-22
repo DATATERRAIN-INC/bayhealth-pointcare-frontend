@@ -10,6 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import { Button } from "@/components/ui/Button";
+import { StatusIndicator } from "@/components/shared/StatusIndicator";
 import { TablePager } from "@/components/shared/TablePager";
 import {
   useGetNotificationsQuery,
@@ -53,21 +54,6 @@ function patientStatusFrom(item: NotificationItem): string {
   return "";
 }
 
-function statusChipColors(status: string): { color: string; bgcolor: string } {
-  const normalized = status.trim().toLowerCase();
-  if (normalized.includes("block")) return { color: "#D14343", bgcolor: "#FDECEC" };
-  if (normalized.includes("active") || normalized.includes("success") || normalized.includes("complete")) {
-    return { color: "#178A45", bgcolor: "#E5F6EC" };
-  }
-  if (normalized.includes("fail") || normalized.includes("error") || normalized.includes("miss")) {
-    return { color: "#D14343", bgcolor: "#FDECEC" };
-  }
-  if (normalized.includes("pending") || normalized.includes("progress") || normalized.includes("call")) {
-    return { color: "#1D5F9A", bgcolor: "#EAF3FB" };
-  }
-  return { color: "#526071", bgcolor: "#F0F2F5" };
-}
-
 function NotificationCard({
   item,
   onOpen,
@@ -76,7 +62,6 @@ function NotificationCard({
   onOpen: () => void;
 }) {
   const status = patientStatusFrom(item);
-  const statusColors = status ? statusChipColors(status) : null;
 
   return (
     <Box
@@ -128,25 +113,7 @@ function NotificationCard({
               ) : null}
             </Box>
             <Stack spacing={0.6} sx={{ alignItems: "flex-end", flexShrink: 0, pt: 0.1 }}>
-              {status && statusColors ? (
-                <Box
-                  component="span"
-                  sx={{
-                    display: "inline-flex",
-                    px: 0.9,
-                    py: 0.2,
-                    borderRadius: "999px",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    lineHeight: 1.4,
-                    color: statusColors.color,
-                    bgcolor: statusColors.bgcolor,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {status}
-                </Box>
-              ) : null}
+              {status ? <StatusIndicator status={status} /> : null}
               <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", whiteSpace: "nowrap" }}>
                 {timeAgo(item.created_at)}
               </Typography>

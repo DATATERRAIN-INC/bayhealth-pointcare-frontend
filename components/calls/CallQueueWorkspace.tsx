@@ -12,7 +12,6 @@ import {
   IconButton,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -24,7 +23,6 @@ import {
   Pause,
   Phone,
   RefreshCw,
-  Search,
   X,
 } from "lucide-react";
 import { channelMeta } from "@/data/gapCalls";
@@ -38,12 +36,14 @@ import {
   useTriggerCallMutation,
 } from "@/lib/api/callsApi";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { SearchBox } from "@/components/shared/SearchBox";
+import { StatusIndicator } from "@/components/shared/StatusIndicator";
 import { ActionsMenu } from "@/components/shared/ActionsMenu";
 import { TablePager } from "@/components/shared/TablePager";
 import { Button } from "@/components/ui/Button";
 import { elevation } from "@/lib/theme/tokens";
 import type { QueueCallItem, QueueStatus } from "@/types/queue";
-import { isLiveQueueStatus, processingEstimateMeta, queueStatusMeta } from "@/types/queue";
+import { isLiveQueueStatus, processingEstimateMeta } from "@/types/queue";
 
 type WaitingTabKey = "all" | "scheduled" | "paused" | "queued";
 
@@ -163,27 +163,7 @@ function formatWait(iso: string | null, now: number): string {
 }
 
 function StatusChip({ status }: { status: QueueStatus }) {
-  const meta = queueStatusMeta[status];
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        px: 1,
-        py: 0.3,
-        borderRadius: "999px",
-        bgcolor: meta.bg,
-        color: meta.color,
-        fontSize: "var(--font-size-body)",
-        fontWeight: 650,
-        lineHeight: 1.3,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {meta.label}
-    </Box>
-  );
+  return <StatusIndicator status={status} />;
 }
 
 function formatRemaining(scheduledAt: string, now: number): string {
@@ -652,22 +632,6 @@ function QueueListRow({
   );
 }
 
-const waitingSearchFieldSx = {
-  width: { xs: "100%", sm: 320 },
-  minWidth: { sm: 320 },
-  flex: { sm: "0 0 320px" },
-  "& .MuiOutlinedInput-root": {
-    height: "34px !important",
-    minHeight: "34px !important",
-    borderRadius: "8px",
-    bgcolor: "#FFFFFF",
-    "& fieldset": { borderColor: "#E2E8F0" },
-    "&:hover fieldset": { borderColor: "#C5CAD6" },
-    "&.Mui-focused fieldset": { borderColor: "primary.main", borderWidth: 1 },
-  },
-  "& .MuiOutlinedInput-input": { py: 0, fontSize: "var(--font-size-body)" },
-} as const;
-
 export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   const [detailsItem, setDetailsItem] = useState<QueueCallItem | null>(null);
@@ -679,6 +643,7 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
   const [waitingQuery, setWaitingQuery] = useState("");
   const [waitingSearch, setWaitingSearch] = useState("");
   const [selectedWaitingIds, setSelectedWaitingIds] = useState<string[]>([]);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [triggerCall, { isLoading: startingCall }] = useTriggerCallMutation();
   const [setCallPaused, { isLoading: pausingCall }] = useSetCallPausedMutation();
   const [cancelCall, { isLoading: cancellingCall }] = useCancelCallMutation();
@@ -787,6 +752,12 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
     });
   }, [waitingIds]);
 
+  useEffect(() => {
+    if (!someWaitingSelected && cancelConfirmOpen && !cancellingCall) {
+      setCancelConfirmOpen(false);
+    }
+  }, [someWaitingSelected, cancelConfirmOpen, cancellingCall]);
+
   function toggleWaitingSelect(id: string) {
     setSelectedWaitingIds((current) =>
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
@@ -802,15 +773,29 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
     });
   }
 
-  function cancelSelectedWaiting() {
+  function openCancelConfirm() {
+    if (selectedOnPage.length === 0 || cancellingCall) return;
+    setCancelConfirmOpen(true);
+  }
+
+  function closeCancelConfirm() {
+    if (cancellingCall) return;
+    setCancelConfirmOpen(false);
+  }
+
+  function confirmCancelSelectedWaiting() {
     if (selectedOnPage.length === 0) return;
     setActionError("");
     void cancelCall({ ids: selectedOnPage })
       .unwrap()
-      .then(() => setSelectedWaitingIds([]))
-      .catch((error) =>
-        setActionError(getApiErrorMessage(error, "Could not cancel the selected calls.")),
-      );
+      .then(() => {
+        setSelectedWaitingIds([]);
+        setCancelConfirmOpen(false);
+      })
+      .catch((error) => {
+        setCancelConfirmOpen(false);
+        setActionError(getApiErrorMessage(error, "Could not cancel the selected calls."));
+      });
   }
 
   const processingMaxPage = Math.max(0, Math.ceil(processingCount / processingPageSize) - 1);
@@ -1088,41 +1073,67 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
                 alignItems: { xs: "stretch", sm: "center" },
                 justifyContent: "space-between",
                 px: 2,
-                py: 1.35,
+                py: 1.5,
                 borderBottom: "1px solid #EEF0F4",
                 bgcolor: "#FAFBFC",
               }}
             >
+              <Box sx={{ minWidth: 0, flexShrink: 0 }}>
+                <Typography sx={{ fontSize: 16, fontWeight: 650, color: "text.primary" }}>
+                  Waiting & needs attention
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: "var(--font-size-body)", color: "#8A93A3" }}>
+                  {showWaitingSkeleton
+                    ? "Loading…"
+                    : waitingCount === 0
+                      ? "None waiting"
+                      : `${waitingCount} call${waitingCount === 1 ? "" : "s"}`}
+                </Typography>
+              </Box>
+
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={1.25}
-                sx={{ alignItems: { xs: "stretch", sm: "center" }, flex: 1, minWidth: 0 }}
+                sx={{
+                  alignItems: { xs: "stretch", sm: "center" },
+                  justifyContent: "flex-end",
+                  ml: { sm: "auto" },
+                  minWidth: 0,
+                  width: { xs: "100%", sm: "auto" },
+                }}
               >
-                <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", flexShrink: 0 }}>
-                  Waiting & needs attention
-                </Typography>
-                <TextField
-                  size="small"
-                  placeholder="Search by patient name or call #"
-                  value={waitingQuery}
-                  onChange={(event) => setWaitingQuery(event.target.value)}
-                  slotProps={{
-                    input: {
-                      startAdornment: <Search size={14} style={{ marginRight: 8, color: "#8B93A7" }} />,
-                    },
+                <Box
+                  sx={{
+                    width: { xs: "100%", sm: 280 },
+                    minWidth: { sm: 280 },
+                    flex: { sm: "0 0 280px" },
                   }}
-                  sx={waitingSearchFieldSx}
-                />
+                >
+                  <SearchBox
+                    height="45px"
+                    width="100%"
+                    value={waitingQuery}
+                    handleSearch={setWaitingQuery}
+                    enableAnimation
+                    staticText="Search by "
+                    animatedItems={["patient name", "call #"]}
+                    animationInterval={3000}
+                    iconPosition="start"
+                    placeholder="Search by patient name or call #"
+                  />
+                </Box>
                 <Button
                   variant="secondary"
                   size="sm"
                   startIcon={<Ban size={14} />}
                   disabled={!someWaitingSelected || cancellingCall}
                   loading={cancellingCall && someWaitingSelected}
-                  onClick={cancelSelectedWaiting}
+                  onClick={openCancelConfirm}
                   sx={{
                     flexShrink: 0,
-                    px: 1.5,
+                    height: 45,
+                    px: 1.75,
+                    alignSelf: { xs: "stretch", sm: "center" },
                     color: someWaitingSelected ? "#D14343" : undefined,
                     borderColor: someWaitingSelected ? "#F0C4C4" : undefined,
                     "&:hover": someWaitingSelected
@@ -1133,13 +1144,6 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
                   {someWaitingSelected ? `Cancel (${selectedOnPage.length})` : "Cancel"}
                 </Button>
               </Stack>
-              <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7", flexShrink: 0 }}>
-                {showWaitingSkeleton
-                  ? "Loading"
-                  : waitingCount === 0
-                    ? "None waiting"
-                    : `${waitingCount} call${waitingCount === 1 ? "" : "s"}`}
-              </Typography>
             </Stack>
 
             {waitingIsError ? (
@@ -1200,6 +1204,102 @@ export function CallQueueWorkspace({ embedded = false }: { embedded?: boolean })
           </Box>
         </Stack>
       )}
+
+      <Dialog
+        open={cancelConfirmOpen}
+        onClose={closeCancelConfirm}
+        maxWidth={false}
+        slotProps={{
+          backdrop: {
+            sx: { bgcolor: elevation.backdrop },
+          },
+          paper: {
+            sx: {
+              width: 440,
+              maxWidth: "calc(100vw - 40px)",
+              borderRadius: "12px",
+              boxShadow: elevation.floating,
+              overflow: "hidden",
+              m: 2,
+            },
+          },
+        }}
+      >
+        <Box
+          sx={{
+            bgcolor: "#FFFFFF",
+            px: 4,
+            py: 5,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+          }}
+        >
+          <Box
+            sx={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              bgcolor: "#FEECEC",
+              display: "grid",
+              placeItems: "center",
+              mb: 2.5,
+            }}
+          >
+            <Ban size={32} strokeWidth={2.25} color="#D14343" />
+          </Box>
+
+          <Typography
+            sx={{
+              fontSize: 18,
+              fontWeight: 500,
+              color: "#D14343",
+              lineHeight: 1.45,
+              maxWidth: 340,
+            }}
+          >
+            Cancel {selectedOnPage.length === 1 ? "this call" : `${selectedOnPage.length} calls`}?
+          </Typography>
+          <Typography
+            sx={{
+              mt: 1,
+              fontSize: "var(--font-size-body)",
+              color: "#6B7280",
+              lineHeight: 1.5,
+              maxWidth: 320,
+            }}
+          >
+            {selectedOnPage.length === 1
+              ? "This call will be removed from the waiting queue. This cannot be undone."
+              : "The selected calls will be removed from the waiting queue. This cannot be undone."}
+          </Typography>
+
+          <Stack direction="row" spacing={1.5} sx={{ mt: 3.5, width: "100%", maxWidth: 320 }}>
+            <Button
+              variant="secondary"
+              onClick={closeCancelConfirm}
+              disabled={cancellingCall}
+              fullWidth
+            >
+              No
+            </Button>
+            <Button
+              onClick={confirmCancelSelectedWaiting}
+              loading={cancellingCall}
+              disabled={cancellingCall}
+              fullWidth
+              autoFocus
+              sx={{
+                bgcolor: "#D14343",
+                "&:hover": { bgcolor: "#B93737" },
+              }}
+            >
+              Yes, Cancel
+            </Button>
+          </Stack>
+        </Box>
+      </Dialog>
 
       <Dialog
         open={Boolean(detailsItem)}

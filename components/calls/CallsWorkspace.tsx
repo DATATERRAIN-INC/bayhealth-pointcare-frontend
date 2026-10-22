@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useEffect,
@@ -7,40 +7,35 @@ import {
   useRef,
   useState,
   type ComponentType,
-  type Ref,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Box,
-  MenuItem,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { History, ListOrdered, MessageSquareText, Phone, Search, type LucideProps } from "lucide-react";
+import { History, ListOrdered, type LucideProps } from "lucide-react";
 import {
+  dataGridViewportHeight,
   TABLE_HEADER_COLOR,
   TABLE_HEADER_HEIGHT,
   TABLE_ROW_HEIGHT,
   TABLE_VISIBLE_PAGE_ROWS,
 } from "@/components/shared/AppTable";
+import { ColumnHeaderFilter } from "@/components/shared/ColumnHeaderFilter";
+import { SearchBox } from "@/components/shared/SearchBox";
 import { TablePager } from "@/components/shared/TablePager";
 import { CallQueueWorkspace } from "@/components/calls/CallQueueWorkspace";
 import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
 import {
   ChannelChip,
-  DESKTOP_PANEL_HEIGHT,
   TranscriptBody,
   TranscriptPanel,
 } from "@/components/calls/CallTranscriptPanel";
 import { CallStatusChip, isLiveCallStatus } from "@/components/shared/CallStatusChip";
-import {
-  SENTIMENT_FILTER_OPTIONS,
-  SentimentChip,
-  type SentimentFilter,
-} from "@/components/shared/SentimentChip";
+import { SentimentChip } from "@/components/shared/SentimentChip";
 import {
   type OutreachCall,
   type OutreachChannel,
@@ -103,15 +98,6 @@ const workspaceViews: {
   { key: "queue", label: "Queue", icon: ListOrdered },
 ];
 
-const channelFilters: {
-  key: ChannelFilterKey;
-  label: string;
-  icon?: TabIcon;
-}[] = [
-  { key: "call", label: "Call", icon: Phone },
-  { key: "text", label: "Text", icon: MessageSquareText },
-];
-
 const surface = {
   bgcolor: "#FFFFFF",
   border: "1px solid #E5E9EF",
@@ -124,31 +110,27 @@ function TypeFilterTabs<T extends string>({
   value,
   onChange,
   "aria-label": ariaLabel,
-  tablistRef,
-  matchHeight,
 }: {
   items: { key: T; label: string; icon?: TabIcon }[];
   value: T;
   onChange: (next: T) => void;
   "aria-label"?: string;
-  tablistRef?: Ref<HTMLDivElement>;
-  matchHeight?: number;
 }) {
   return (
     <Box
-      ref={tablistRef}
       role="tablist"
       aria-label={ariaLabel}
       sx={{
         display: "inline-flex",
         alignItems: "stretch",
+        alignSelf: "flex-start",
+        width: "fit-content",
+        maxWidth: "100%",
         boxSizing: "border-box",
-        height: matchHeight ? `${matchHeight}px` : "auto",
         p: "3px",
         borderRadius: "10px",
         bgcolor: "#F1F5F9",
         border: "1px solid #E2E8F0",
-        maxWidth: "100%",
         overflowX: "auto",
         "&::-webkit-scrollbar": { display: "none" },
         scrollbarWidth: "none",
@@ -202,146 +184,201 @@ function TypeFilterTabs<T extends string>({
   );
 }
 
-function StatusFilterRow({
+function ChannelHistoryTabs({
   value,
-  counts,
+  callCount,
+  textCount,
   onChange,
 }: {
-  value: FilterKey;
-  counts?: Partial<Record<FilterKey, number>>;
-  onChange: (next: FilterKey) => void;
+  value: ChannelFilterKey;
+  callCount: number;
+  textCount: number;
+  onChange: (next: ChannelFilterKey) => void;
 }) {
+  const items: { key: ChannelFilterKey; label: string; count: number }[] = [
+    { key: "call", label: "Calls", count: callCount },
+    { key: "text", label: "Texts", count: textCount },
+  ];
+
   return (
-    <Stack
-      direction="row"
-      spacing={1}
+    <Box
+      role="tablist"
+      aria-label="Filter by channel"
       sx={{
+        display: "inline-flex",
         alignItems: "center",
-        overflowX: "auto",
-        "&::-webkit-scrollbar": { display: "none" },
-        scrollbarWidth: "none",
+        gap: 1.25,
+        flexWrap: "wrap",
       }}
     >
-      {filters.map((item) => {
+      {items.map((item) => {
         const selected = value === item.key;
-        const count = counts?.[item.key];
         return (
           <Box
             key={item.key}
             component="button"
             type="button"
+            role="tab"
+            aria-selected={selected}
             onClick={() => onChange(item.key)}
             sx={{
-              flexShrink: 0,
-              border: selected ? "1px solid #C9DBF2" : "1px solid transparent",
+              display: "inline-flex",
+              alignItems: "center",
+              px: 1.5,
+              py: 0.55,
               borderRadius: "999px",
-              px: 1.35,
-              py: 0.45,
-              bgcolor: selected ? "#EAF3FB" : "transparent",
-              color: selected ? "primary.main" : "#667085",
+              border: "1px solid",
+              borderColor: selected ? "#B7D4EF" : "transparent",
+              bgcolor: selected ? "#E8F3FC" : "transparent",
+              color: selected ? "primary.main" : "#8B93A7",
               fontFamily: "inherit",
               fontSize: "var(--font-size-body)",
-              fontWeight: selected ? 650 : 500,
-              lineHeight: 1.25,
+              fontWeight: selected ? 650 : 550,
+              lineHeight: 1.3,
               cursor: "pointer",
-              transition: "background-color 120ms ease, color 120ms ease, border-color 120ms ease",
+              whiteSpace: "nowrap",
+              fontVariantNumeric: "tabular-nums",
+              transition: "background-color 140ms ease, color 140ms ease, border-color 140ms ease",
               "&:hover": {
-                bgcolor: selected ? "#EAF3FB" : "#F3F5F8",
-                color: selected ? "primary.main" : "text.primary",
+                color: selected ? "primary.main" : "#1C2A6B",
+                bgcolor: selected ? "#E8F3FC" : "#F5F7FA",
               },
             }}
           >
-            {count == null ? item.label : `${item.label} · ${count}`}
+            {item.label} · {item.count}
           </Box>
         );
       })}
-    </Stack>
-  );
-}
-
-function SentimentFilterSelect({
-  value,
-  onChange,
-}: {
-  value: SentimentFilter;
-  onChange: (next: SentimentFilter) => void;
-}) {
-  return (
-    <TextField
-      select
-      size="small"
-      value={value}
-      onChange={(event) => onChange(event.target.value as SentimentFilter)}
-      aria-label="Filter by sentiment"
-      sx={{
-        minWidth: 170,
-        flexShrink: 0,
-        "& .MuiOutlinedInput-root": {
-          height: 34,
-          borderRadius: "999px",
-          bgcolor: value === "all" ? "transparent" : "#EAF3FB",
-          fontSize: "var(--font-size-body)",
-          "& fieldset": { borderColor: value === "all" ? "#E2E8F0" : "#C9DBF2" },
-        },
-      }}
-    >
-      {SENTIMENT_FILTER_OPTIONS.map((option) => (
-        <MenuItem key={option.value} value={option.value} sx={{ fontSize: "var(--font-size-body)" }}>
-          {option.label}
-        </MenuItem>
-      ))}
-    </TextField>
-  );
-}
-
-function StatusFilterBar({
-  status,
-  statusCounts,
-  onStatusChange,
-  sentiment,
-  onSentimentChange,
-}: {
-  status: FilterKey;
-  statusCounts?: Partial<Record<FilterKey, number>>;
-  onStatusChange: (next: FilterKey) => void;
-  sentiment: SentimentFilter;
-  onSentimentChange: (next: SentimentFilter) => void;
-}) {
-  return (
-    <Box
-      sx={{
-        px: { xs: 1.5, sm: 2 },
-        pt: 1.6,
-        pb: 1.35,
-        borderBottom: "1px solid #E8ECF1",
-        bgcolor: "#FAFBFC",
-      }}
-    >
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <StatusFilterRow value={status} counts={statusCounts} onChange={onStatusChange} />
-        </Box>
-        <SentimentFilterSelect value={sentiment} onChange={onSentimentChange} />
-      </Stack>
     </Box>
   );
 }
 
 const CALLS_PER_PAGE = 10;
+/** Fixed DataGrid viewport (10 rows), same pattern as Patients — no card scroll. */
+const CALLS_GRID_HEIGHT = dataGridViewportHeight({ withFooter: false });
 
-const searchFieldSx = {
-  width: { xs: "100%", sm: 260 },
-  "& .MuiOutlinedInput-root": {
-    height: "40px !important",
-    minHeight: "40px !important",
-    borderRadius: "10px",
-    bgcolor: "#FFFFFF",
-    "& fieldset": { borderColor: "#E2E8F0" },
-    "&:hover fieldset": { borderColor: "#C5CAD6" },
-    "&.Mui-focused fieldset": { borderColor: "primary.main", borderWidth: 1 },
-  },
-  "& .MuiOutlinedInput-input": { py: 0, fontSize: "var(--font-size-body)" },
-} as const;
+const STATUS_FILTER_OPTIONS = filters.map((item) => ({
+  value: item.key,
+  label: item.label,
+}));
+
+function ActivityCardHeader({
+  query,
+  animatedItems,
+  onQueryChange,
+  channelFilter,
+  callCount,
+  textCount,
+  onChannelChange,
+  statusFilter = "all",
+  onClearStatusFilter,
+}: {
+  query: string;
+  animatedItems: string[];
+  onQueryChange: (next: string) => void;
+  channelFilter: ChannelFilterKey;
+  callCount: number;
+  textCount: number;
+  onChannelChange: (next: ChannelFilterKey) => void;
+  statusFilter?: FilterKey;
+  onClearStatusFilter?: () => void;
+}) {
+  const activeStatusLabel =
+    statusFilter !== "all"
+      ? filters.find((item) => item.key === statusFilter)?.label
+      : undefined;
+
+  return (
+    <Stack
+      direction={{ xs: "column", sm: "row" }}
+      spacing={1.25}
+      sx={{
+        alignItems: { xs: "stretch", sm: "center" },
+        justifyContent: "space-between",
+        px: 2,
+        py: 1.25,
+        borderBottom: "1px solid #E9EDF2",
+        flexShrink: 0,
+      }}
+    >
+      <Stack
+        direction="row"
+        spacing={1.25}
+        sx={{
+          minWidth: 0,
+          flex: "1 1 auto",
+          alignItems: "center",
+          flexWrap: "wrap",
+          rowGap: 0.75,
+        }}
+      >
+        <ChannelHistoryTabs
+          value={channelFilter}
+          callCount={callCount}
+          textCount={textCount}
+          onChange={onChannelChange}
+        />
+        {activeStatusLabel ? (
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
+            <Typography sx={{ color: "#D0D5DD", fontSize: 12, lineHeight: 1 }}>·</Typography>
+            <Box
+              component="button"
+              type="button"
+              onClick={onClearStatusFilter}
+              title={`Clear ${activeStatusLabel} filter`}
+              aria-label={`Clear ${activeStatusLabel} filter`}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                p: 0,
+                border: 0,
+                bgcolor: "transparent",
+                color: "primary.main",
+                fontFamily: "inherit",
+                fontSize: "var(--font-size-body)",
+                fontWeight: 650,
+                lineHeight: 1.35,
+                cursor: onClearStatusFilter ? "pointer" : "default",
+                "&:hover": onClearStatusFilter
+                  ? { textDecoration: "underline" }
+                  : undefined,
+              }}
+            >
+              {activeStatusLabel}
+              {onClearStatusFilter ? (
+                <Box component="span" sx={{ fontSize: 13, lineHeight: 1, opacity: 0.75 }}>
+                  ×
+                </Box>
+              ) : null}
+            </Box>
+          </Stack>
+        ) : null}
+      </Stack>
+
+      <Box
+        sx={{
+          flex: { xs: "1 1 auto", sm: "0 0 280px" },
+          width: { xs: "100%", sm: 280 },
+          minWidth: 0,
+        }}
+      >
+        <SearchBox
+          height="45px"
+          width="100%"
+          value={query}
+          handleSearch={onQueryChange}
+          enableAnimation
+          staticText="Search by "
+          animatedItems={animatedItems}
+          animationInterval={3000}
+          iconPosition="start"
+          placeholder="Search here..."
+        />
+      </Box>
+    </Stack>
+  );
+}
 
 export function CallsWorkspace() {
   const router = useRouter();
@@ -355,7 +392,6 @@ export function CallsWorkspace() {
   const [defaultViewReady, setDefaultViewReady] = useState(viewExplicit);
 
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("call");
   const [selectedId, setSelectedId] = useState("");
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
@@ -363,27 +399,13 @@ export function CallsWorkspace() {
   const [pageSize, setPageSize] = useState(CALLS_PER_PAGE);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
-  const typeTabsRef = useRef<HTMLDivElement>(null);
-  const [matchedTabsHeight, setMatchedTabsHeight] = useState<number>();
-  const activityTabsHeight = view === "activity" ? matchedTabsHeight : undefined;
+  const tableCardRef = useRef<HTMLDivElement>(null);
+  const [transcriptPanelHeight, setTranscriptPanelHeight] = useState<number>();
 
   const { data: callSummary, isSuccess: summaryReady, isError: summaryError } = useGetCallSummaryQuery(
     undefined,
     callQueueSubscriptionOptions,
   );
-
-  useLayoutEffect(() => {
-    if (!defaultViewReady || view !== "activity") return;
-    const el = typeTabsRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver(() => {
-      const next = Math.round(el.getBoundingClientRect().height);
-      setMatchedTabsHeight((prev) => (prev === next ? prev : next));
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [defaultViewReady, view, channelFilter]);
 
   function setView(next: WorkspaceView) {
     const params = new URLSearchParams(searchParams.toString());
@@ -423,7 +445,6 @@ export function CallsWorkspace() {
       page: page + 1,
       pageSize,
       status: filter === "all" ? undefined : filter,
-      userSentiment: sentimentFilter === "all" ? undefined : sentimentFilter,
       channel: "call",
       search: search || undefined,
     },
@@ -435,10 +456,23 @@ export function CallsWorkspace() {
     { skip: !activityActive || !isTextView },
   );
 
+  // Keep the inactive channel count warm so both tabs show live totals.
+  const inactiveCallsCountQuery = useGetCallsQuery(
+    {
+      page: 1,
+      pageSize: 1,
+      status: filter === "all" ? undefined : filter,
+      channel: "call",
+      search: search || undefined,
+    },
+    { skip: !activityActive || !isTextView },
+  );
+  const inactiveSmsCountQuery = useGetSmsConversationsQuery(
+    { page: 1, pageSize: 1, search: search || undefined },
+    { skip: !activityActive || isTextView },
+  );
+
   const data = isTextView ? smsQuery.data : callsQuery.data;
-  const isUninitialized = isTextView ? smsQuery.isUninitialized : callsQuery.isUninitialized;
-  const isLoading = isTextView ? smsQuery.isLoading : callsQuery.isLoading;
-  const isFetching = isTextView ? smsQuery.isFetching : callsQuery.isFetching;
   const isError = isTextView ? smsQuery.isError : callsQuery.isError;
 
   const apiRows = useMemo(() => data?.results ?? [], [data?.results]);
@@ -449,12 +483,33 @@ export function CallsWorkspace() {
   }, [apiRows, isTextView]);
   const rowCount =
     isTextView || paged.length === apiRows.length ? (data?.count ?? 0) : paged.length;
-  /** Only the active status tab shows a count, and only after the list request has settled. */
-  const filterCounts = useMemo(() => {
-    if (isTextView) return undefined;
-    if (isUninitialized || isLoading || isFetching) return undefined;
-    return { [filter]: data?.count ?? 0 } as Partial<Record<FilterKey, number>>;
-  }, [data?.count, filter, isFetching, isLoading, isTextView, isUninitialized]);
+  const callCount = isTextView ? (inactiveCallsCountQuery.data?.count ?? 0) : rowCount;
+  const textCount = isTextView ? rowCount : (inactiveSmsCountQuery.data?.count ?? 0);
+
+  function handleChannelChange(next: ChannelFilterKey) {
+    setChannelFilter(next);
+    if (next === "text") setFilter("all");
+    setPage(0);
+    setSelectedId("");
+    setMobileOpenId(null);
+  }
+
+  useLayoutEffect(() => {
+    if (!activityActive) return;
+    const el = tableCardRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      const next = Math.round(el.getBoundingClientRect().height);
+      setTranscriptPanelHeight((prev) => (prev === next ? prev : next));
+    };
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activityActive, isTextView, rowCount, filter, pageSize]);
+
   const selected = paged.find((call) => call.id === selectedId);
   const mobileCall = paged.find((call) => call.id === mobileOpenId);
   const focusCall = mobileCall ?? selected;
@@ -585,21 +640,28 @@ export function CallsWorkspace() {
       field: "status",
       headerName: "Status",
       flex: 0.9,
-      minWidth: 120,
+      minWidth: 150,
       sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      headerAlign: "left",
+      align: "left",
+      renderHeader: isTextView
+        ? undefined
+        : () => (
+            <ColumnHeaderFilter
+              label="Status"
+              value={filter}
+              options={STATUS_FILTER_OPTIONS}
+              onChange={(next) => {
+                setFilter(next);
+                setPage(0);
+                setSelectedId("");
+              }}
+            />
+          ),
       renderCell: (params) => <CallStatusChip status={params.row.status} />,
     });
-
-    if (!isTextView) {
-      cols.push({
-        field: "userSentiment",
-        headerName: "Sentiment",
-        flex: 0.8,
-        minWidth: 110,
-        sortable: false,
-        renderCell: (params) => <SentimentChip sentiment={params.row.userSentiment} />,
-      });
-    }
 
     cols.push({
       field: "started",
@@ -670,7 +732,7 @@ export function CallsWorkspace() {
     return cols;
     // itemLabel/transcriptLabel close over selected; refresh when selection changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, isTextView]);
+  }, [selectedId, isTextView, filter]);
 
   if (!defaultViewReady) {
     return (
@@ -694,23 +756,16 @@ export function CallsWorkspace() {
             sx={{ display: { xs: "none", lg: "block" }, mt: 0.5, bgcolor: "#E9EEF4" }}
           />
         </Box>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1.25}
-          sx={{ alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}
-        >
-          <Skeleton variant="rounded" animation="wave" width={168} height={40} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
-          <Skeleton variant="rounded" animation="wave" width={200} height={40} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
-        </Stack>
+        <Skeleton variant="rounded" animation="wave" width={168} height={40} sx={{ bgcolor: "#E9EEF4", borderRadius: "10px" }} />
         <Box
           sx={{
             ...surface,
-            height: { xs: 420, lg: DESKTOP_PANEL_HEIGHT },
             display: "flex",
             flexDirection: "column",
-            overflow: "hidden",
+            overflow: "visible",
             p: 2,
             gap: 1.5,
+            minHeight: { xs: 420, lg: CALLS_GRID_HEIGHT + 120 },
           }}
         >
           <Skeleton variant="rounded" animation="wave" height={36} sx={{ bgcolor: "#E9EEF4", borderRadius: "8px" }} />
@@ -758,68 +813,12 @@ export function CallsWorkspace() {
         </Typography>
       </Box>
 
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={1.25}
-        sx={{
-          alignItems: { xs: "stretch", sm: "center" },
-          justifyContent: "space-between",
-        }}
-      >
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1.25}
-          sx={{
-            alignItems: { xs: "stretch", sm: "center" },
-            flex: 1,
-            minWidth: 0,
-          }}
-        >
-          {view === "activity" ? (
-            <>
-              <TypeFilterTabs
-                aria-label="Filter by type"
-                items={channelFilters}
-                value={channelFilter}
-                tablistRef={typeTabsRef}
-                onChange={(next) => {
-                  setChannelFilter(next);
-                  if (next === "text") setFilter("all");
-                  setPage(0);
-                  setSelectedId("");
-                  setMobileOpenId(null);
-                }}
-              />
-              <TextField
-                size="medium"
-                placeholder="Search by patient name or call #"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(0);
-                  setSelectedId("");
-                  setMobileOpenId(null);
-                }}
-                slotProps={{
-                  input: {
-                    startAdornment: <Search size={15} style={{ marginRight: 8, color: "#8B93A7" }} />,
-                  },
-                }}
-                sx={searchFieldSx}
-              />
-            </>
-          ) : (
-            <Box sx={{ flex: 1 }} />
-          )}
-        </Stack>
-        <TypeFilterTabs
-          aria-label="Workspace view"
-          items={workspaceViews}
-          value={view}
-          onChange={setView}
-          matchHeight={activityTabsHeight}
-        />
-      </Stack>
+      <TypeFilterTabs
+        aria-label="Workspace view"
+        items={workspaceViews}
+        value={view}
+        onChange={setView}
+      />
 
       {view === "queue" ? <CallQueueWorkspace embedded /> : null}
 
@@ -831,39 +830,46 @@ export function CallsWorkspace() {
           display: { xs: "none", lg: "grid" },
           gridTemplateColumns: selected ? "minmax(0, 1.35fr) minmax(320px, 0.9fr)" : "minmax(0, 1fr)",
           gap: 2,
-          alignItems: "stretch",
+          alignItems: "start",
         }}
       >
         <Box
+          ref={tableCardRef}
           sx={{
             ...surface,
-            height: DESKTOP_PANEL_HEIGHT,
             display: "flex",
             flexDirection: "column",
-            overflow: "hidden",
+            overflow: "visible",
             borderColor: "#E5E9EF",
             borderRadius: "10px",
           }}
         >
-          {!isTextView ? (
-            <StatusFilterBar
-              status={filter}
-              statusCounts={filterCounts}
-              onStatusChange={(next) => {
-                setFilter(next);
-                setPage(0);
-                setSelectedId("");
-              }}
-              sentiment={sentimentFilter}
-              onSentimentChange={(next) => {
-                setSentimentFilter(next);
-                setPage(0);
-                setSelectedId("");
-              }}
-            />
-          ) : null}
+          <ActivityCardHeader
+            query={query}
+            animatedItems={isTextView ? ["patient name"] : ["patient name", "call #"]}
+            onQueryChange={(next) => {
+              setQuery(next);
+              setPage(0);
+              setSelectedId("");
+              setMobileOpenId(null);
+            }}
+            channelFilter={channelFilter}
+            callCount={callCount}
+            textCount={textCount}
+            onChannelChange={handleChannelChange}
+            statusFilter={isTextView ? "all" : filter}
+            onClearStatusFilter={
+              !isTextView && filter !== "all"
+                ? () => {
+                    setFilter("all");
+                    setPage(0);
+                    setSelectedId("");
+                  }
+                : undefined
+            }
+          />
 
-          <Box sx={{ flex: 1, minHeight: 0 }}>
+          <Box sx={{ width: "100%", height: CALLS_GRID_HEIGHT }}>
             <DataGrid
               rows={isError ? [] : paged}
               columns={columns}
@@ -898,22 +904,33 @@ export function CallsWorkspace() {
                 width: "100%",
                 height: "100%",
                 fontSize: "var(--font-size-body)",
-                "& .MuiDataGrid-main": { minHeight: 0 },
-                // Viewport stays at 10 rows; scroll only when Rows per page loads more.
+                "& .MuiDataGrid-main": { overflow: "hidden" },
+                // Keep viewport at 10 rows; only scroll inside when Rows per page > 10.
                 "& .MuiDataGrid-virtualScroller": {
                   overflowY: pageSize > TABLE_VISIBLE_PAGE_ROWS ? "auto" : "hidden",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 1,
-                  bgcolor: TABLE_HEADER_COLOR,
                 },
                 "& .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeader": {
                   bgcolor: TABLE_HEADER_COLOR,
                 },
                 "& .MuiDataGrid-columnHeader, & .MuiDataGrid-cell": {
                   px: 2,
+                },
+                "& .MuiDataGrid-columnHeader[data-field='status']": {
+                  overflow: "visible",
+                },
+                "& .MuiDataGrid-columnHeader[data-field='status'] .MuiDataGrid-columnHeaderTitleContainer": {
+                  width: "100%",
+                  maxWidth: "100%",
+                  overflow: "visible",
+                },
+                "& .MuiDataGrid-columnHeader[data-field='status'] .MuiDataGrid-columnHeaderTitleContainerContent": {
+                  width: "100% !important",
+                  maxWidth: "100%",
+                  flex: "1 1 auto",
+                  overflow: "visible",
+                },
+                "& .MuiDataGrid-columnHeader[data-field='status'] .MuiDataGrid-columnHeaderTitle": {
+                  width: "100%",
                 },
                 "& .MuiDataGrid-columnHeaderTitle": {
                   fontWeight: 650,
@@ -965,43 +982,38 @@ export function CallsWorkspace() {
             loading={transcriptLoading && isActiveTranscript(viewed)}
             error={transcriptError}
             onClose={() => setSelectedId("")}
+            height={transcriptPanelHeight}
           />
         ) : null}
       </Box>
 
       <Stack spacing={1.25} sx={{ display: { xs: "flex", lg: "none" } }}>
-        {!isTextView ? (
-          <Box
-            sx={{
-              ...surface,
-              px: 1.5,
-              pt: 1.4,
-              pb: 1.25,
-              borderColor: "#E8ECF1",
-              bgcolor: "#FAFBFC",
+        <Box sx={{ ...surface, overflow: "hidden" }}>
+          <ActivityCardHeader
+            query={query}
+            animatedItems={isTextView ? ["patient name"] : ["patient name", "call #"]}
+            onQueryChange={(next) => {
+              setQuery(next);
+              setPage(0);
+              setSelectedId("");
+              setMobileOpenId(null);
             }}
-          >
-            <StatusFilterRow
-              value={filter}
-              counts={filterCounts}
-              onChange={(next) => {
-                setFilter(next);
-                setPage(0);
-                setMobileOpenId(null);
-              }}
-            />
-            <Box sx={{ mt: 1.1 }}>
-              <SentimentFilterSelect
-                value={sentimentFilter}
-                onChange={(next) => {
-                  setSentimentFilter(next);
-                  setPage(0);
-                  setMobileOpenId(null);
-                }}
-              />
-            </Box>
-          </Box>
-        ) : null}
+            channelFilter={channelFilter}
+            callCount={callCount}
+            textCount={textCount}
+            onChannelChange={handleChannelChange}
+            statusFilter={isTextView ? "all" : filter}
+            onClearStatusFilter={
+              !isTextView && filter !== "all"
+                ? () => {
+                    setFilter("all");
+                    setPage(0);
+                    setMobileOpenId(null);
+                  }
+                : undefined
+            }
+          />
+        </Box>
         {paged.length === 0 ? (
           <Box
             sx={{

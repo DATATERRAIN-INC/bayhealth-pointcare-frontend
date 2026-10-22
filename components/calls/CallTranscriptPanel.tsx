@@ -10,19 +10,12 @@ import {
   type OutreachChannel,
 } from "@/data/gapCalls";
 import { CallStatusChip, isLiveCallStatus } from "@/components/shared/CallStatusChip";
-import { SentimentChip } from "@/components/shared/SentimentChip";
 import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
 import { dataGridViewportHeight, TABLE_FOOTER_HEIGHT } from "@/components/shared/AppTable";
 import { elevation } from "@/lib/theme/tokens";
 
-/** Status filter bar approx. height — panel stays locked to a 10-row table viewport. */
-const CALLS_STATUS_FILTER_HEIGHT = 58;
-
-/** Fixed desktop calls/transcript panel height (10 visible rows), independent of Rows per page. */
-export const DESKTOP_PANEL_HEIGHT =
-  CALLS_STATUS_FILTER_HEIGHT +
-  dataGridViewportHeight({ withFooter: false }) +
-  TABLE_FOOTER_HEIGHT;
+/** Fixed DataGrid viewport (10 rows). Transcript panel stretches to match the table card. */
+export const DESKTOP_PANEL_HEIGHT = dataGridViewportHeight({ withFooter: false }) + TABLE_FOOTER_HEIGHT;
 
 export function TranscriptSkeleton({ includeRecordings = false }: { includeRecordings?: boolean }) {
   return (
@@ -217,13 +210,17 @@ export function TranscriptPanel({
   loading = false,
   error = false,
   onClose,
+  height,
 }: {
   call: OutreachCall | undefined;
   loading?: boolean;
   error?: boolean;
   onClose: () => void;
+  /** Fixed height matching the calls table card; body scrolls inside. */
+  height?: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const panelHeight = height && height > 0 ? height : DESKTOP_PANEL_HEIGHT;
 
   async function onCopy() {
     if (!call || call.messages.length === 0) return;
@@ -241,13 +238,14 @@ export function TranscriptPanel({
       <Box
         sx={{
           ...surface,
-          height: DESKTOP_PANEL_HEIGHT,
+          height: panelHeight,
+          maxHeight: panelHeight,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
         }}
       >
-        <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: "1px solid #F0F2F5" }}>
+        <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: "1px solid #F0F2F5", flexShrink: 0 }}>
           <Typography sx={{ fontSize: 15, fontWeight: 650, color: "text.primary", letterSpacing: "-0.01em" }}>
             Transcript
           </Typography>
@@ -255,6 +253,8 @@ export function TranscriptPanel({
         <Box
           sx={{
             flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -275,6 +275,7 @@ export function TranscriptPanel({
             py: 1.5,
             borderTop: "1px solid #F0F2F5",
             bgcolor: "#FAFBFC",
+            flexShrink: 0,
           }}
         >
           <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>No call selected</Typography>
@@ -290,7 +291,8 @@ export function TranscriptPanel({
     <Box
       sx={{
         ...surface,
-        height: DESKTOP_PANEL_HEIGHT,
+        height: panelHeight,
+        maxHeight: panelHeight,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -306,6 +308,7 @@ export function TranscriptPanel({
           pt: 2,
           pb: 1.75,
           borderBottom: "1px solid #F0F2F5",
+          flexShrink: 0,
         }}
       >
         <Box sx={{ minWidth: 0 }}>
@@ -321,9 +324,6 @@ export function TranscriptPanel({
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
           <ChannelChip channel={call.channel} />
           <CallStatusChip status={call.status} />
-          {call.channel === "call" && call.userSentiment ? (
-            <SentimentChip sentiment={call.userSentiment} />
-          ) : null}
           <Box
             component="button"
             type="button"
@@ -348,7 +348,17 @@ export function TranscriptPanel({
         </Stack>
       </Stack>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2 }}>
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          px: 2.25,
+          py: 2,
+          overscrollBehavior: "contain",
+        }}
+      >
         <CallRecordingsList
           channel={call.channel}
           recordingUrl={call.recordingUrl}
@@ -367,6 +377,7 @@ export function TranscriptPanel({
           py: 1.5,
           borderTop: "1px solid #F0F2F5",
           bgcolor: "#FAFBFC",
+          flexShrink: 0,
         }}
       >
         <Typography sx={{ fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
