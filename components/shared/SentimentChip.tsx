@@ -12,6 +12,18 @@ const SENTIMENT_META: Record<UserSentiment, { label: string; color: string; bg: 
   Unknown: { label: "Unknown", color: "#8B93A7", bg: "#F5F6F8" },
 };
 
+/** Calls-page filter. `pending` = Retell has not analysed the call yet. */
+export type SentimentFilter = "all" | UserSentiment | "pending";
+
+export const SENTIMENT_FILTER_OPTIONS: { value: SentimentFilter; label: string }[] = [
+  { value: "all", label: "All sentiments" },
+  { value: "Positive", label: "Positive" },
+  { value: "Neutral", label: "Neutral" },
+  { value: "Negative", label: "Negative" },
+  { value: "Unknown", label: "Unknown" },
+  { value: "pending", label: "Not analysed yet" },
+];
+
 export function parseUserSentiment(value: unknown): UserSentiment | null {
   const text = String(value ?? "").trim().toLowerCase();
   if (text === "positive") return "Positive";

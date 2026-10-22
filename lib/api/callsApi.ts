@@ -16,7 +16,7 @@ import type {
   CallsListResponse,
   TranscriptApiLine,
 } from "@/types/call";
-import type { ProcessingEstimate, QueueCallItem, QueueStatus } from "@/types/queue";
+import { isLiveQueueStatus, type ProcessingEstimate, type QueueCallItem, type QueueStatus } from "@/types/queue";
 import { formatPhoneNumber } from "@/constants/phone";
 
 const CALL_TIME_ZONE = "America/New_York";
@@ -25,6 +25,8 @@ export interface CallsQuery {
   page: number;
   pageSize: number;
   status?: OutreachStatus;
+  /** Retell sentiment filter: Positive | Neutral | Negative | Unknown | pending. */
+  userSentiment?: string;
   channel?: OutreachChannel;
   patient?: string | number;
   /** Patient first/last/full name or call id. */
@@ -142,15 +144,10 @@ function mapQueueStatusFromApi(value: string | undefined): QueueStatus {
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
-  if (
-    status === "in_progress" ||
-    status === "ongoing" ||
-    status === "ringing" ||
-    status === "waiting" ||
-    status === "connect_live_agent"
-  ) {
-    return "in_progress";
-  }
+  if (status === "in_progress" || status === "ringing") return "in_progress";
+  if (status === "ongoing") return "ongoing";
+  if (status === "waiting") return "waiting";
+  if (status === "connect_live_agent") return "connect_live_agent";
   if (status === "queued") return "queued";
   if (status === "paused") return "paused";
   if (status === "scheduled") return "scheduled";
@@ -187,7 +184,7 @@ function mapQueueItem(record: CallApiRecord, position: number, status: QueueStat
     channel: mapChannel(record),
     status,
     estimate:
-      status === "in_progress"
+      isLiveQueueStatus(status)
         ? "active"
         : status === "paused"
           ? "on_hold"
@@ -394,7 +391,7 @@ export const callsApi = createApi({
   tagTypes: ["Call"],
   endpoints: (builder) => ({
     getCalls: builder.query<CallsPage, CallsQuery>({
-      query: ({ page, pageSize, status, channel, patient, search }) => {
+      query: ({ page, pageSize, status, userSentiment, channel, patient, search }) => {
         const params = new URLSearchParams({
           page: String(page),
           page_size: String(pageSize),
@@ -403,6 +400,7 @@ export const callsApi = createApi({
           // One tab covers both transfer states: waiting for, and with, a live agent.
           params.set("status", status === "live_agent" ? "waiting,connect_live_agent" : status);
         }
+        if (userSentiment) params.set("user_sentiment", userSentiment);
         if (channel) params.set("channel", channel);
         if (patient !== undefined && patient !== null && String(patient).trim()) {
           params.set("patient", String(patient));

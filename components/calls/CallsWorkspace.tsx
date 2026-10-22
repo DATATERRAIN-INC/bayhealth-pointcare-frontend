@@ -12,6 +12,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Box,
+  MenuItem,
   Skeleton,
   Stack,
   TextField,
@@ -35,7 +36,11 @@ import {
   TranscriptPanel,
 } from "@/components/calls/CallTranscriptPanel";
 import { CallStatusChip, isLiveCallStatus } from "@/components/shared/CallStatusChip";
-import { SentimentChip } from "@/components/shared/SentimentChip";
+import {
+  SENTIMENT_FILTER_OPTIONS,
+  SentimentChip,
+  type SentimentFilter,
+} from "@/components/shared/SentimentChip";
 import {
   type OutreachCall,
   type OutreachChannel,
@@ -254,14 +259,53 @@ function StatusFilterRow({
   );
 }
 
+function SentimentFilterSelect({
+  value,
+  onChange,
+}: {
+  value: SentimentFilter;
+  onChange: (next: SentimentFilter) => void;
+}) {
+  return (
+    <TextField
+      select
+      size="small"
+      value={value}
+      onChange={(event) => onChange(event.target.value as SentimentFilter)}
+      aria-label="Filter by sentiment"
+      sx={{
+        minWidth: 170,
+        flexShrink: 0,
+        "& .MuiOutlinedInput-root": {
+          height: 34,
+          borderRadius: "999px",
+          bgcolor: value === "all" ? "transparent" : "#EAF3FB",
+          fontSize: "var(--font-size-body)",
+          "& fieldset": { borderColor: value === "all" ? "#E2E8F0" : "#C9DBF2" },
+        },
+      }}
+    >
+      {SENTIMENT_FILTER_OPTIONS.map((option) => (
+        <MenuItem key={option.value} value={option.value} sx={{ fontSize: "var(--font-size-body)" }}>
+          {option.label}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
 function StatusFilterBar({
   status,
   statusCounts,
   onStatusChange,
+  sentiment,
+  onSentimentChange,
 }: {
   status: FilterKey;
   statusCounts?: Partial<Record<FilterKey, number>>;
   onStatusChange: (next: FilterKey) => void;
+  sentiment: SentimentFilter;
+  onSentimentChange: (next: SentimentFilter) => void;
 }) {
   return (
     <Box
@@ -273,7 +317,12 @@ function StatusFilterBar({
         bgcolor: "#FAFBFC",
       }}
     >
-      <StatusFilterRow value={status} counts={statusCounts} onChange={onStatusChange} />
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <StatusFilterRow value={status} counts={statusCounts} onChange={onStatusChange} />
+        </Box>
+        <SentimentFilterSelect value={sentiment} onChange={onSentimentChange} />
+      </Stack>
     </Box>
   );
 }
@@ -306,6 +355,7 @@ export function CallsWorkspace() {
   const [defaultViewReady, setDefaultViewReady] = useState(viewExplicit);
 
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilterKey>("call");
   const [selectedId, setSelectedId] = useState("");
   const [mobileOpenId, setMobileOpenId] = useState<string | null>(null);
@@ -373,6 +423,7 @@ export function CallsWorkspace() {
       page: page + 1,
       pageSize,
       status: filter === "all" ? undefined : filter,
+      userSentiment: sentimentFilter === "all" ? undefined : sentimentFilter,
       channel: "call",
       search: search || undefined,
     },
@@ -803,6 +854,12 @@ export function CallsWorkspace() {
                 setPage(0);
                 setSelectedId("");
               }}
+              sentiment={sentimentFilter}
+              onSentimentChange={(next) => {
+                setSentimentFilter(next);
+                setPage(0);
+                setSelectedId("");
+              }}
             />
           ) : null}
 
@@ -933,6 +990,16 @@ export function CallsWorkspace() {
                 setMobileOpenId(null);
               }}
             />
+            <Box sx={{ mt: 1.1 }}>
+              <SentimentFilterSelect
+                value={sentimentFilter}
+                onChange={(next) => {
+                  setSentimentFilter(next);
+                  setPage(0);
+                  setMobileOpenId(null);
+                }}
+              />
+            </Box>
           </Box>
         ) : null}
         {paged.length === 0 ? (
