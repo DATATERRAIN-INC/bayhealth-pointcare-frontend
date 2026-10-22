@@ -34,7 +34,8 @@ import {
   TranscriptBody,
   TranscriptPanel,
 } from "@/components/calls/CallTranscriptPanel";
-import { CallStatusChip } from "@/components/shared/CallStatusChip";
+import { CallStatusChip, isLiveCallStatus } from "@/components/shared/CallStatusChip";
+import { SentimentChip } from "@/components/shared/SentimentChip";
 import {
   type OutreachCall,
   type OutreachChannel,
@@ -53,12 +54,24 @@ type WorkspaceView = "activity" | "queue";
 
 function queueHasItems(summary: {
   in_progress: number;
+  ongoing: number;
+  waiting: number;
+  connect_live_agent: number;
   queued: number;
   scheduled: number;
   paused: number;
 } | undefined): boolean {
   if (!summary) return false;
-  return summary.in_progress + summary.queued + summary.scheduled + summary.paused > 0;
+  return (
+    summary.in_progress +
+      summary.ongoing +
+      summary.waiting +
+      summary.connect_live_agent +
+      summary.queued +
+      summary.scheduled +
+      summary.paused >
+    0
+  );
 }
 type FilterKey = "all" | OutreachStatus;
 type ChannelFilterKey = OutreachChannel;
@@ -68,8 +81,11 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "completed", label: "Completed" },
   { key: "in_progress", label: "In progress" },
+  { key: "ongoing", label: "Ongoing" },
+  { key: "live_agent", label: "Live agent" },
   { key: "callback", label: "Callback" },
   { key: "not_attended", label: "Not attended" },
+  { key: "voicemail_reached", label: "Voicemail" },
   { key: "cancel", label: "Cancelled" },
 ];
 
@@ -465,7 +481,7 @@ export function CallsWorkspace() {
       Boolean(call.liveAgentRecordingUrl);
     if (call.id === selected?.id && available) return "Viewing";
     if (available) return "View";
-    if (call.channel === "call" && call.status === "in_progress") return "After call ends";
+    if (call.channel === "call" && isLiveCallStatus(call.status)) return "After call ends";
     return call.channel === "text" ? "No messages" : "No transcript";
   }
 
@@ -522,6 +538,17 @@ export function CallsWorkspace() {
       sortable: false,
       renderCell: (params) => <CallStatusChip status={params.row.status} />,
     });
+
+    if (!isTextView) {
+      cols.push({
+        field: "userSentiment",
+        headerName: "Sentiment",
+        flex: 0.8,
+        minWidth: 110,
+        sortable: false,
+        renderCell: (params) => <SentimentChip sentiment={params.row.userSentiment} />,
+      });
+    }
 
     cols.push({
       field: "started",
@@ -947,12 +974,15 @@ export function CallsWorkspace() {
                   <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexShrink: 0 }}>
                     <ChannelChip channel={call.channel} />
                     <CallStatusChip status={call.status} />
+                    {call.channel === "call" && call.userSentiment ? (
+                      <SentimentChip sentiment={call.userSentiment} />
+                    ) : null}
                   </Stack>
                 </Stack>
                 <Typography sx={{ mt: 0.45, fontSize: "var(--font-size-body)", color: "#8B93A7", lineHeight: 1.4 }}>
                   {itemLabel(call)} · {call.started} EDT
                   {call.channel === "call"
-                    ? ` · ${call.status === "in_progress" ? "live" : call.duration}`
+                    ? ` · ${isLiveCallStatus(call.status) ? "live" : call.duration}`
                     : ""}
                 </Typography>
 
@@ -1003,7 +1033,7 @@ export function CallsWorkspace() {
                   >
                     {open ? "Hide transcript" : "View transcript"}
                   </Box>
-                ) : call.channel === "call" && call.status === "in_progress" ? (
+                ) : call.channel === "call" && isLiveCallStatus(call.status) ? (
                   <Typography sx={{ mt: 1.15, fontSize: "var(--font-size-body)", color: "#8B93A7" }}>
                     Transcript available after the call ends.
                   </Typography>

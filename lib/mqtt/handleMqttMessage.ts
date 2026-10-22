@@ -51,15 +51,16 @@ function normalizeCallStatus(value: unknown): string | null {
   const status = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (!status || status === "null" || status === "undefined") return null;
   if (status === "cancel") return "cancelled";
-  if (status === "waiting") return "queued";
   return status;
 }
 
 const QUEUE_STATUSES = new Set(["queued", "paused", "scheduled"]);
+// On the line: dialing, with the AI, waiting for an agent, or with an agent.
+const LIVE_STATUSES = new Set(["in_progress", "ongoing", "waiting", "connect_live_agent"]);
 
 function tagsForCallStatus(status: string | null): Array<{ type: "Call"; id: string }> {
   if (!status) return [];
-  if (status === "in_progress") {
+  if (LIVE_STATUSES.has(status)) {
     return [
       { type: "Call", id: "QUEUE" },
       { type: "Call", id: "STATUS_in_progress" },
@@ -71,7 +72,7 @@ function tagsForCallStatus(status: string | null): Array<{ type: "Call"; id: str
       { type: "Call", id: `STATUS_${status}` },
     ];
   }
-  // completed | not_attended | callback | cancelled | …
+  // completed | not_attended | voicemail_reached | callback | cancelled | …
   return [{ type: "Call", id: "LIST" }];
 }
 

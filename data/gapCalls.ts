@@ -1,9 +1,14 @@
 import type { CallStatus } from "@/components/shared/CallStatusChip";
+import type { UserSentiment } from "@/components/shared/SentimentChip";
 
 export type OutreachStatus =
   | "completed"
   | "in_progress"
+  | "ongoing"
+  /** Waiting for or talking to a live agent (waiting + connect_live_agent). */
+  | "live_agent"
   | "not_attended"
+  | "voicemail_reached"
   | "callback"
   | "cancel";
 export type OutreachChannel = "call" | "text";
@@ -23,6 +28,8 @@ export interface OutreachCall {
   patientName: string;
   channel: OutreachChannel;
   status: CallStatus | null;
+  /** Retell post-call sentiment; null until analysed (and for texts). */
+  userSentiment?: UserSentiment | null;
   started: string;
   duration: string;
   dateLabel: string;

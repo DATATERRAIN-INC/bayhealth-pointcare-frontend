@@ -14,6 +14,15 @@ export interface CallApiRecord {
   reason?: string;
   service_name?: string;
   decline_reason?: string;
+  /** Retell post-call analysis: Positive | Neutral | Negative | Unknown. */
+  user_sentiment?: string;
+  /** Retell Session Outcome: Successful | Unsuccessful (null until analysed). */
+  session_outcome?: string | null;
+  call_successful?: boolean | null;
+  /** Retell End Reason, e.g. user_hangup, voicemail_reached. */
+  disconnection_reason?: string;
+  /** Retell Session Status, e.g. ended, not_connected. */
+  retell_call_status?: string;
   retell_call_id?: string;
   flow?: string;
   /** Outreach channel: call | text | sms */

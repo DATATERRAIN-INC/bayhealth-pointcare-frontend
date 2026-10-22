@@ -9,7 +9,8 @@ import {
   type OutreachCall,
   type OutreachChannel,
 } from "@/data/gapCalls";
-import { CallStatusChip } from "@/components/shared/CallStatusChip";
+import { CallStatusChip, isLiveCallStatus } from "@/components/shared/CallStatusChip";
+import { SentimentChip } from "@/components/shared/SentimentChip";
 import { CallRecordingsList } from "@/components/calls/CallRecordingPlayer";
 import { dataGridViewportHeight, TABLE_FOOTER_HEIGHT } from "@/components/shared/AppTable";
 import { elevation } from "@/lib/theme/tokens";
@@ -149,7 +150,7 @@ export function TranscriptBody({
       ? call.channel === "text"
         ? "Could not load this text thread."
         : "Could not load this transcript."
-      : call.channel === "call" && call.status === "in_progress"
+      : call.channel === "call" && isLiveCallStatus(call.status)
         ? "Transcript available after the call ends."
         : call.channel === "text"
           ? "No messages for this text."
@@ -320,6 +321,9 @@ export function TranscriptPanel({
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
           <ChannelChip channel={call.channel} />
           <CallStatusChip status={call.status} />
+          {call.channel === "call" && call.userSentiment ? (
+            <SentimentChip sentiment={call.userSentiment} />
+          ) : null}
           <Box
             component="button"
             type="button"

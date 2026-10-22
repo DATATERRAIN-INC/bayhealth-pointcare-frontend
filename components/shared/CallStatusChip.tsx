@@ -6,8 +6,12 @@ export type CallStatus =
   | "queued"
   | "in_progress"
   | "ongoing"
+  | "sent"
+  | "waiting"
+  | "connect_live_agent"
   | "completed"
   | "not_attended"
+  | "voicemail_reached"
   | "callback"
   | "scheduled"
   | "paused"
@@ -16,9 +20,14 @@ export type CallStatus =
 const CALL_STATUS_META: Record<CallStatus, { label: string; color: string; bg: string }> = {
   queued: { label: "Queued", color: "#526071", bg: "#F0F2F5" },
   in_progress: { label: "In progress", color: "#F08A1A", bg: "#FFF4E8" },
-  ongoing: { label: "Sent", color: "#178A45", bg: "#E5F6EC" },
+  ongoing: { label: "Ongoing", color: "#178A45", bg: "#E5F6EC" },
+  // Text (SMS) threads only.
+  sent: { label: "Sent", color: "#178A45", bg: "#E5F6EC" },
+  waiting: { label: "Waiting for agent", color: "#B45309", bg: "#FEF3C7" },
+  connect_live_agent: { label: "With live agent", color: "#1D5F9A", bg: "#E8F3FC" },
   completed: { label: "Completed", color: "#178A45", bg: "#E5F6EC" },
   not_attended: { label: "Not attended", color: "#D14343", bg: "#FDECEC" },
+  voicemail_reached: { label: "Voicemail", color: "#B42318", bg: "#FEF0EE" },
   callback: { label: "Callback", color: "#B45309", bg: "#FEF3C7" },
   scheduled: { label: "Scheduled", color: "#5B4DB5", bg: "#EEEAFE" },
   paused: { label: "Paused", color: "#B45309", bg: "#FEF3C7" },
@@ -35,8 +44,11 @@ export function parseCallStatus(value: unknown): CallStatus | null {
     status === "paused" ||
     status === "in_progress" ||
     status === "ongoing" ||
+    status === "waiting" ||
+    status === "connect_live_agent" ||
     status === "completed" ||
     status === "not_attended" ||
+    status === "voicemail_reached" ||
     status === "callback" ||
     status === "scheduled" ||
     status === "paused" ||
@@ -50,6 +62,13 @@ export function parseCallStatus(value: unknown): CallStatus | null {
   return null;
 }
 
+/** Backend statuses for a call that is still on the line (AI, waiting, or with an agent). */
+export const LIVE_CALL_STATUSES = ["in_progress", "ongoing", "waiting", "connect_live_agent"] as const;
+
+export function isLiveCallStatus(status: string | null | undefined): boolean {
+  return (LIVE_CALL_STATUSES as readonly string[]).includes(String(status ?? ""));
+}
+
 export function callStatusMeta(status: CallStatus | null | undefined): { label: string; color: string; bg: string } {
   if (!status) return { label: "Unknown", color: "#8B93A7", bg: "#F0F2F5" };
   return CALL_STATUS_META[status];
@@ -57,7 +76,10 @@ export function callStatusMeta(status: CallStatus | null | undefined): { label: 
 
 export const CALL_STATUS_FILTER_OPTIONS: { value: CallStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
-  ...(Object.entries(CALL_STATUS_META) as [CallStatus, { label: string }][]).map(([value, meta]) => ({
+  ...(Object.entries(CALL_STATUS_META) as [CallStatus, { label: string }][])
+    // "sent" is a text-thread label, not a patient call status.
+    .filter(([value]) => value !== "sent")
+    .map(([value, meta]) => ({
     value,
     label: meta.label,
   })),
